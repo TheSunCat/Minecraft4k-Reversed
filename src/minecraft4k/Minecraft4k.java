@@ -132,8 +132,8 @@ public class Minecraft4k
             float velocityX = 0.0F;
             float velocityY = 0.0F;
             float velocityZ = 0.0F;
-            int hoveredBlock = -1;
-            int i5 = 0;
+            int hoveredBlock = -1; // index in world array
+            int i5 = 0; // idk, changes depending on hovered block sort of
             float cameraYaw = 0.0F;
             float cameraPitch = 0.0F;
             
@@ -143,10 +143,10 @@ public class Minecraft4k
                     System.out.println("DEBUG::BREAK");
                 }
                 
-                float f9 = (float)Math.sin(cameraYaw);
-                float f10 = (float)Math.cos(cameraYaw);
-                float f11 = (float)Math.sin(cameraPitch);
-                float f12 = (float)Math.cos(cameraPitch);
+                float sinyaw = (float)Math.sin(cameraYaw);
+                float cosYaw = (float)Math.cos(cameraYaw);
+                float sinPitch = (float)Math.sin(cameraPitch);
+                float cosPitch = (float)Math.cos(cameraPitch);
                 
                 while (System.currentTimeMillis() - startTime > 10L) {
                     if (input[MOUSE_X] > 0) {
@@ -175,9 +175,10 @@ public class Minecraft4k
                     velocityX *= 0.5F;
                     velocityY *= 0.99F;
                     velocityZ *= 0.5F;
-                    velocityX += f9 * inputZ + f10 * inputX;
-                    velocityZ += f10 * inputZ - f9 * inputX;
+                    velocityX += sinyaw * inputZ + cosYaw * inputX;
+                    velocityZ += cosYaw * inputZ - sinyaw * inputX;
                     velocityY += 0.003F;
+                    
                     int i8;
                     
                     OUTER:
@@ -235,17 +236,17 @@ public class Minecraft4k
                 }
                 
                 // render the screen 214x120
-                float i8 = -1.0F;
+                float newHoveredBlock = -1.0F;
                 for (int x = 0; x < SCR_WIDTH; x++) {
                     float f18 = (x - 107) / 90.0F;
                     
                     for (int y = 0; y < SCR_HEIGHT; y++) {
                         float f20 = (y - 60) / 90.0F;
                         float f21 = 1.0F;
-                        float f22 = f21 * f12 + f20 * f11;
-                        float f23 = f20 * f12 - f21 * f11;
-                        float f24 = f18 * f10 + f22 * f9;
-                        float f25 = f22 * f10 - f18 * f9;
+                        float f22 = f21 * cosPitch + f20 * sinPitch;
+                        float f23 = f20 * cosPitch - f21 * sinPitch;
+                        float f24 = f18 * cosYaw + f22 * sinyaw;
+                        float f25 = f22 * cosYaw - f18 * sinyaw;
                         int i16 = 0;
                         int i17 = 255;
                         double d = 20.0D;
@@ -318,7 +319,7 @@ public class Minecraft4k
                                         i26 = arrayOfInt3[i6 + i7 * 16 + i25 * 256 * 3];
                                     
                                     if (f33 < f26 && x == input[MOUSE_X] / 4 && y == input[MOUSE_Y] / 4) {
-                                        i8 = i24;
+                                        newHoveredBlock = i24;
                                         i5 = 1;
                                         if (f27 > 0.0F)
                                             i5 = -1;
@@ -349,9 +350,9 @@ public class Minecraft4k
                     }
                 }
                 
-                hoveredBlock = (int)i8;
+                hoveredBlock = (int) newHoveredBlock;
                 
-                Thread.sleep(20L);
+                Thread.sleep(2L);
                 repaint();
             }
         
