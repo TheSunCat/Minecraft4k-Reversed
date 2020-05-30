@@ -15,7 +15,10 @@ import javax.swing.JPanel;
 public class Minecraft4k
     extends JPanel
 {
-    static int[] M = new int[32767];
+    static int[] input = new int[32767];
+    
+    final static int MOUSE_X = 2;
+    final static int MOUSE_Y = 3;
     
     public static void main(String[] args)
     {
@@ -36,16 +39,26 @@ public class Minecraft4k
     }
 
 
-    BufferedImage localBufferedImage = new BufferedImage(214, 120, 1);
+    BufferedImage screen = new BufferedImage(214, 120, 1);
     
     public void run() {
         try {
             Random rand = new Random(18295169L);
-            int[] arrayOfInt1 = ((DataBufferInt)localBufferedImage.getRaster().getDataBuffer()).getData();
-            int[] arrayOfInt2 = new int[262144];
+            int[] screenBuffer = ((DataBufferInt)screen.getRaster().getDataBuffer()).getData();
+            
+            int[] worldArray = new int[262144]; // 2^18
+            
+            // fill world with random blocks
             for (int i = 0; i < 262144; i++) {
-                arrayOfInt2[i] = (i / 64 % 64 > 32 + rand.nextInt(8)) ? (rand.nextInt(8) + 1) : 0;
+                int block;
+                if(i / 64 % 64 > 32 + rand.nextInt(8))
+                    block = (rand.nextInt(8) + 1);
+                else
+                    block = 0;
+                
+                worldArray[i] = block;
             }
+            
             int[] arrayOfInt3 = new int[12288];
             for (int j = 1; j < 16; j++) {
                 
@@ -113,14 +126,15 @@ public class Minecraft4k
                         arrayOfInt3[n + m * 16 + j * 256 * 3] = i3;
                     } 
                 } 
-            } 
+            }
+            
             float f1 = 96.5F;
             float f2 = 65.0F;
             float f3 = 96.5F;
             float f4 = 0.0F;
             float f5 = 0.0F;
             float f6 = 0.0F;
-            long l = System.currentTimeMillis();
+            long startTime = System.currentTimeMillis();
             int i4 = -1;
             int i5 = 0;
             float f7 = 0.0F;
@@ -131,12 +145,12 @@ public class Minecraft4k
                 float f10 = (float)Math.cos(f7);
                 float f11 = (float)Math.sin(f8);
                 float f12 = (float)Math.cos(f8);
-                while (System.currentTimeMillis() - l > 10L) {
-                    
-                    if (this.M[2] > 0) {
+                
+                while (System.currentTimeMillis() - startTime > 10L) {
+                    if (input[MOUSE_X] > 0) {
                         
-                        float f13 = (this.M[2] - 428) / 214.0F * 2.0F;
-                        float f14 = (this.M[3] - 240) / 120.0F * 2.0F;
+                        float f13 = (input[MOUSE_X] - 428) / 214.0F * 2.0F;
+                        float f14 = (input[MOUSE_Y] - 240) / 120.0F * 2.0F;
                         float f15 = (float)Math.sqrt((f13 * f13 + f14 * f14)) - 1.2F;
                         if (f15 < 0.0F) {
                             f15 = 0.0F;
@@ -153,11 +167,11 @@ public class Minecraft4k
                             }
                         } 
                     } 
-                    l += 10L;
+                    startTime += 10L;
                     float f13 = 0.0F;
                     float f14 = 0.0F;
-                    f14 += (this.M[119] - this.M[115]) * 0.02F;
-                    f13 += (this.M[100] - this.M[97]) * 0.02F;
+                    f14 += (input[KeyEvent.VK_W] - input[KeyEvent.VK_S]) * 0.02F;
+                    f13 += (input[KeyEvent.VK_D] - input[KeyEvent.VK_A]) * 0.02F;
                     f4 *= 0.5F;
                     f5 *= 0.99F;
                     f6 *= 0.5F;
@@ -175,14 +189,14 @@ public class Minecraft4k
                             int i13 = (int)(f16 + (i12 >> 0 & 1) * 0.6F - 0.3F) - 64;
                             int i14 = (int)(f17 + ((i12 >> 2) - 1) * 0.8F + 0.65F) - 64;
                             int i15 = (int)(f19 + (i12 >> 1 & 1) * 0.6F - 0.3F) - 64;
-                            if (i13 < 0 || i14 < 0 || i15 < 0 || i13 >= 64 || i14 >= 64 || i15 >= 64 || arrayOfInt2[i13 + i14 * 64 + i15 * 4096] > 0) {
+                            if (i13 < 0 || i14 < 0 || i15 < 0 || i13 >= 64 || i14 >= 64 || i15 >= 64 || worldArray[i13 + i14 * 64 + i15 * 4096] > 0) {
                                 
                                 if (i8 != 1) {
                                     break label208;
                                 }
-                                if (this.M[32] > 0 && f5 > 0.0F) {
+                                if (input[32] > 0 && f5 > 0.0F) {
                                     
-                                    this.M[32] = 0;
+                                    input[32] = 0;
                                     f5 = -0.1F;
                                     break label208;
                                 } 
@@ -197,15 +211,15 @@ public class Minecraft4k
                 } 
                 int i6 = 0;
                 int i7 = 0;
-                if (this.M[1] > 0 && i4 > 0) {
+                if (input[1] > 0 && i4 > 0) {
                     
-                    arrayOfInt2[i4] = 0;
-                    this.M[1] = 0;
+                    worldArray[i4] = 0;
+                    input[1] = 0;
                 } 
-                if (this.M[0] > 0 && i4 > 0) {
+                if (input[0] > 0 && i4 > 0) {
                     
-                    arrayOfInt2[i4 + i5] = 1;
-                    this.M[0] = 0;
+                    worldArray[i4 + i5] = 1;
+                    input[0] = 0;
                 } 
                 
                 for (int i8 = 0; i8 < 12; i8++) {
@@ -214,7 +228,7 @@ public class Minecraft4k
                     int i10 = (int)(f2 + ((i8 >> 2) - 1) * 0.8F + 0.65F) - 64;
                     int i11 = (int)(f3 + (i8 >> 1 & 1) * 0.6F - 0.3F) - 64;
                     if (i9 >= 0 && i10 >= 0 && i11 >= 0 && i9 < 64 && i10 < 64 && i11 < 64) {
-                        arrayOfInt2[i9 + i10 * 64 + i11 * 4096] = 0;
+                        worldArray[i9 + i10 * 64 + i11 * 4096] = 0;
                     }
                 } 
                 float i8 = -1.0F;
@@ -281,7 +295,7 @@ public class Minecraft4k
                                     break;
                                 }
                                 int i24 = i21 + i22 * 64 + i23 * 4096;
-                                int i25 = arrayOfInt2[i24];
+                                int i25 = worldArray[i24];
                                 if (i25 > 0) {
                                     
                                     i6 = (int)((f34 + f36) * 16.0F) & 0xF;
@@ -298,7 +312,7 @@ public class Minecraft4k
                                     if (i24 != i4 || (i6 > 0 && i7 % 16 > 0 && i6 < 15 && i7 % 16 < 15)) {
                                         i26 = arrayOfInt3[i6 + i7 * 16 + i25 * 256 * 3];
                                     }
-                                    if (f33 < f26 && i9 == this.M[2] / 4 && i11 == this.M[3] / 4) {
+                                    if (f33 < f26 && i9 == input[MOUSE_X] / 4 && i11 == input[MOUSE_Y] / 4) {
                                         
                                         i8 = i24;
                                         i5 = 1;
@@ -325,7 +339,7 @@ public class Minecraft4k
                         int i18 = (i16 >> 16 & 0xFF) * i17 / 255;
                         int i19 = (i16 >> 8 & 0xFF) * i17 / 255;
                         int i20 = (i16 & 0xFF) * i17 / 255;
-                        arrayOfInt1[i9 + i11 * 214] = i18 << 16 | i19 << 8 | i20;
+                        screenBuffer[i9 + i11 * 214] = i18 << 16 | i19 << 8 | i20;
                     } 
                 } 
                 i4 = (int)i8;
@@ -342,8 +356,7 @@ public class Minecraft4k
     @Override
     public void paint(Graphics g)
     {
-        g.drawImage(localBufferedImage, 0, 0, 856, 480, null);
-        System.out.println("minecraft4k.Minecraft4k.paint()");
+        g.drawImage(screen, 0, 0, 856, 480, null);
     }
 }
 
@@ -354,12 +367,14 @@ class MinecraftEventListener implements KeyListener, MouseListener, MouseMotionL
 
     @Override
     public void keyPressed(KeyEvent e) {
-        Minecraft4k.M[e.getKeyCode()] = 1;
+        System.out.println(e.getKeyCode());
+        
+        Minecraft4k.input[e.getKeyCode()] = 1;
     }
 
     @Override
     public void keyReleased(KeyEvent e) {
-        Minecraft4k.M[e.getKeyCode()] = 0;
+        Minecraft4k.input[e.getKeyCode()] = 0;
     }
 
     @Override
@@ -367,23 +382,23 @@ class MinecraftEventListener implements KeyListener, MouseListener, MouseMotionL
 
     @Override
     public void mousePressed(MouseEvent e) {
-        Minecraft4k.M[2] = e.getX();
-        Minecraft4k.M[3] = e.getY();
+        Minecraft4k.input[Minecraft4k.MOUSE_X] = e.getX();
+        Minecraft4k.input[Minecraft4k.MOUSE_Y] = e.getY();
         
         if (e.isMetaDown()) {
-            Minecraft4k.M[1] = 1;
+            Minecraft4k.input[1] = 1;
             return;
         } 
-        Minecraft4k.M[0] = 1;
+        Minecraft4k.input[0] = 1;
     }
 
     @Override
     public void mouseReleased(MouseEvent e) {
         if (e.isMetaDown()) {
-            Minecraft4k.M[1] = 0;
+            Minecraft4k.input[1] = 0;
             return;
         } 
-        Minecraft4k.M[0] = 0;
+        Minecraft4k.input[0] = 0;
     }
 
     @Override
@@ -391,7 +406,8 @@ class MinecraftEventListener implements KeyListener, MouseListener, MouseMotionL
 
     @Override
     public void mouseExited(MouseEvent e) {
-        Minecraft4k.M[2] = 0;
+        Minecraft4k.input[Minecraft4k.MOUSE_X] = 0;
+        Minecraft4k.input[Minecraft4k.MOUSE_Y] = 0;
     }
 
     @Override
@@ -399,8 +415,7 @@ class MinecraftEventListener implements KeyListener, MouseListener, MouseMotionL
 
     @Override
     public void mouseMoved(MouseEvent e) {
-        Minecraft4k.M[2] = e.getX();
-        Minecraft4k.M[3] = e.getY();
+        Minecraft4k.input[Minecraft4k.MOUSE_X] = e.getX();
+        Minecraft4k.input[Minecraft4k.MOUSE_Y] = e.getY();
     }
-    
 }
