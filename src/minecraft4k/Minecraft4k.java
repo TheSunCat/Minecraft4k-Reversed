@@ -20,6 +20,9 @@ public class Minecraft4k
     final static int MOUSE_X = 2;
     final static int MOUSE_Y = 3;
     
+    final static int SCR_WIDTH = 214;
+    final static int SCR_HEIGHT = 120;
+    
     public static void main(String[] args)
     {
         JFrame frame = new JFrame("Minecraft4k");
@@ -38,7 +41,7 @@ public class Minecraft4k
         m4k.run();
     }
 
-    BufferedImage screen = new BufferedImage(214, 120, 1);
+    BufferedImage screen = new BufferedImage(SCR_WIDTH, SCR_HEIGHT, 1);
     
     public void run() {
         try {
@@ -121,13 +124,14 @@ public class Minecraft4k
                 }
             }
             
+            long startTime = System.currentTimeMillis();
+            
             float f1 = 96.5F;
             float f2 = 65.0F;
             float f3 = 96.5F;
             float f4 = 0.0F;
             float f5 = 0.0F;
             float f6 = 0.0F;
-            long startTime = System.currentTimeMillis();
             int i4 = -1;
             int i5 = 0;
             float f7 = 0.0F;
@@ -141,8 +145,8 @@ public class Minecraft4k
                 
                 while (System.currentTimeMillis() - startTime > 10L) {
                     if (input[MOUSE_X] > 0) {
-                        float f13 = (input[MOUSE_X] - 428) / 214.0F * 2.0F;
-                        float f14 = (input[MOUSE_Y] - 240) / 120.0F * 2.0F;
+                        float f13 = (input[MOUSE_X] - 428) / (float) SCR_WIDTH * 2.0F;
+                        float f14 = (input[MOUSE_Y] - 240) / (float) SCR_HEIGHT * 2.0F;
                         float f15 = (float)Math.sqrt((f13 * f13 + f14 * f14)) - 1.2F;
                         
                         if (f15 < 0.0F)
@@ -225,13 +229,13 @@ public class Minecraft4k
                         worldArray[i9 + i10 * 64 + i11 * 4096] = 0;
                 }
                 
-                // render the screen
+                // render the screen 214x120
                 float i8 = -1.0F;
-                for (int i9 = 0; i9 < 214; i9++) {
-                    float f18 = (i9 - 107) / 90.0F;
+                for (int x = 0; x < SCR_WIDTH; x++) {
+                    float f18 = (x - 107) / 90.0F;
                     
-                    for (int i11 = 0; i11 < 120; i11++) {
-                        float f20 = (i11 - 60) / 90.0F;
+                    for (int y = 0; y < SCR_HEIGHT; y++) {
+                        float f20 = (y - 60) / 90.0F;
                         float f21 = 1.0F;
                         float f22 = f21 * f12 + f20 * f11;
                         float f23 = f20 * f12 - f21 * f11;
@@ -308,7 +312,7 @@ public class Minecraft4k
                                     if (i24 != i4 || (i6 > 0 && i7 % 16 > 0 && i6 < 15 && i7 % 16 < 15))
                                         i26 = arrayOfInt3[i6 + i7 * 16 + i25 * 256 * 3];
                                     
-                                    if (f33 < f26 && i9 == input[MOUSE_X] / 4 && i11 == input[MOUSE_Y] / 4) {
+                                    if (f33 < f26 && x == input[MOUSE_X] / 4 && y == input[MOUSE_Y] / 4) {
                                         i8 = i24;
                                         i5 = 1;
                                         if (f27 > 0.0F)
@@ -336,7 +340,7 @@ public class Minecraft4k
                         int i18 = (i16 >> 16 & 0xFF) * i17 / 255;
                         int i19 = (i16 >> 8 & 0xFF) * i17 / 255;
                         int i20 = (i16 & 0xFF) * i17 / 255;
-                        screenBuffer[i9 + i11 * 214] = i18 << 16 | i19 << 8 | i20;
+                        screenBuffer[x + y * SCR_WIDTH] = i18 << 16 | i19 << 8 | i20;
                     }
                 }
                 
