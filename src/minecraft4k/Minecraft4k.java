@@ -17,6 +17,8 @@ public class Minecraft4k
 {
     static int[] input = new int[32767];
     
+    final static int MOUSE_RIGHT = 0;
+    final static int MOUSE_LEFT = 1;
     final static int MOUSE_X = 2;
     final static int MOUSE_Y = 3;
     
@@ -179,23 +181,24 @@ public class Minecraft4k
                     velocityZ += cosYaw * inputZ - sinyaw * inputX;
                     velocityY += 0.003F;
                     
-                    int i8;
                     
                     OUTER:
-                    for (i8 = 0; i8 < 3; i8++) {
-                        float f16 = playerX + velocityX * ((i8 + 0) % 3 / 2);
-                        float f17 = playerY + velocityY * ((i8 + 1) % 3 / 2);
-                        float f19 = playerZ + velocityZ * ((i8 + 2) % 3 / 2);
+                    for (int iter = 0; iter < 3; iter++) {
+                        float newPlayerX = playerX + velocityX * ((iter + 0) % 3 / 2);
+                        float newPlayerY = playerY + velocityY * ((iter + 1) % 3 / 2);
+                        float newPlayerZ = playerZ + velocityZ * ((iter + 2) % 3 / 2);
                         
-                        for (int i12 = 0; i12 < 12; i12++) {
-                            int i13 = (int)(f16 + (i12 >> 0 & 1) * 0.6F - 0.3F) - 64;
-                            int i14 = (int)(f17 + ((i12 >> 2) - 1) * 0.8F + 0.65F) - 64;
-                            int i15 = (int)(f19 + (i12 >> 1 & 1) * 0.6F - 0.3F) - 64;
+                        for (int iter2 = 0; iter2 < 12; iter2++) {
+                            int i13 = (int)(newPlayerX + (iter2 >> 0 & 1) * 0.6F - 0.3F) - 64;
+                            int i14 = (int)(newPlayerY + ((iter2 >> 2) - 1) * 0.8F + 0.65F) - 64;
+                            int i15 = (int)(newPlayerZ + (iter2 >> 1 & 1) * 0.6F - 0.3F) - 64;
                             
+                            // if player is grounded
                             if (i13 < 0 || i14 < 0 || i15 < 0 || i13 >= 64 || i14 >= 64 || i15 >= 64 || worldArray[i13 + i14 * 64 + i15 * 4096] > 0) {
-                                if (i8 != 1)
+                                if (iter != 1)
                                     break OUTER;
                                 
+                                // if we're not already going up and we press space
                                 if (input[KeyEvent.VK_SPACE] > 0 && velocityY > 0.0F) {
                                     input[KeyEvent.VK_SPACE] = 0;
                                     velocityY = -0.1F;
@@ -207,23 +210,27 @@ public class Minecraft4k
                             }
                         }
                         
-                        playerX = f16;
-                        playerY = f17;
-                        playerZ = f19;
+                        playerX = newPlayerX;
+                        playerY = newPlayerY;
+                        playerZ = newPlayerZ;
                     }
                 }
+                
+                System.out.println(playerY);
                 
                 int i6 = 0;
                 int i7 = 0;
                 
-                if (input[1] > 0 && hoveredBlock > 0) {
+                // break block
+                if (input[MOUSE_LEFT] == 1 && hoveredBlock > 0) {
                     worldArray[hoveredBlock] = 0;
-                    input[1] = 0;
+                    input[MOUSE_LEFT] = 0;
                 }
                 
-                if (input[0] > 0 && hoveredBlock > 0) {
+                // place block
+                if (input[MOUSE_RIGHT] > 0 && hoveredBlock > 0) {
                     worldArray[hoveredBlock + i5] = 1;
-                    input[0] = 0;
+                    input[MOUSE_RIGHT] = 0;
                 }
                 
                 for (int i8 = 0; i8 < 12; i8++) {
@@ -392,19 +399,19 @@ class MinecraftEventListener implements KeyListener, MouseListener, MouseMotionL
         Minecraft4k.input[Minecraft4k.MOUSE_Y] = e.getY();
         
         if (e.isMetaDown()) {
-            Minecraft4k.input[1] = 1;
+            Minecraft4k.input[Minecraft4k.MOUSE_LEFT] = 1;
             return;
         }
-        Minecraft4k.input[0] = 1;
+        Minecraft4k.input[Minecraft4k.MOUSE_RIGHT] = 1;
     }
 
     @Override
     public void mouseReleased(MouseEvent e) {
         if (e.isMetaDown()) {
-            Minecraft4k.input[1] = 0;
+            Minecraft4k.input[Minecraft4k.MOUSE_LEFT] = 0;
             return;
         }
-        Minecraft4k.input[0] = 0;
+        Minecraft4k.input[Minecraft4k.MOUSE_RIGHT] = 0;
     }
 
     @Override
