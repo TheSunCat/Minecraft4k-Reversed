@@ -25,6 +25,9 @@ public class Minecraft4k
     final static int SCR_WIDTH = 214;
     final static int SCR_HEIGHT = 120;
     
+    final static int WORLD_SIZE = 64;
+    final static int WORLD_HEIGHT = 64;
+    
     public static void main(String[] args)
     {
         JFrame frame = new JFrame("Minecraft4k");
@@ -50,10 +53,10 @@ public class Minecraft4k
             Random rand = new Random(18295169L);
             int[] screenBuffer = ((DataBufferInt)screen.getRaster().getDataBuffer()).getData();
             
-            int[] worldArray = new int[262144]; // 2^18
+            int[] worldArray = new int[WORLD_SIZE * WORLD_HEIGHT * WORLD_SIZE];
             
             // fill world with random blocks
-            for (int i = 0; i < 262144; i++) {
+            for (int i = 0; i < worldArray.length; i++) {
                 int block;
                 if(i / 64 % 64 > 32 + rand.nextInt(8))
                     block = (rand.nextInt(8) + 1);
@@ -182,29 +185,35 @@ public class Minecraft4k
                     velocityY += 0.003F;
                     
                     
+                    //check for movement on each axis individually
                     OUTER:
-                    for (int iter = 0; iter < 3; iter++) {
-                        float newPlayerX = playerX + velocityX * ((iter + 0) % 3 / 2);
-                        float newPlayerY = playerY + velocityY * ((iter + 1) % 3 / 2);
-                        float newPlayerZ = playerZ + velocityZ * ((iter + 2) % 3 / 2);
+                    for (int axisIndex = 0; axisIndex < 3; axisIndex++) {
+                        float newPlayerX = playerX + velocityX * ((axisIndex + 0) % 3 / 2);
+                        float newPlayerY = playerY + velocityY * ((axisIndex + 1) % 3 / 2);
+                        float newPlayerZ = playerZ + velocityZ * ((axisIndex + 2) % 3 / 2);
                         
-                        for (int iter2 = 0; iter2 < 12; iter2++) {
-                            int i13 = (int)(newPlayerX + (iter2 >> 0 & 1) * 0.6F - 0.3F) - 64;
-                            int i14 = (int)(newPlayerY + ((iter2 >> 2) - 1) * 0.8F + 0.65F) - 64;
-                            int i15 = (int)(newPlayerZ + (iter2 >> 1 & 1) * 0.6F - 0.3F) - 64;
+                        for (int colliderIndex = 0; colliderIndex < 12; colliderIndex++) {
+                            // magic
+                            int colliderBlockX = (int)(newPlayerX + (colliderIndex >> 0 & 1) * 0.6F - 0.3F) - WORLD_SIZE;
+                            int colliderBlockY = (int)(newPlayerY + ((colliderIndex >> 2) - 1) * 0.8F + 0.65F) - WORLD_HEIGHT;
+                            int colliderBlockZ = (int)(newPlayerZ + (colliderIndex >> 1 & 1) * 0.6F - 0.3F) - WORLD_SIZE;
                             
-                            // if player is grounded
-                            if (i13 < 0 || i14 < 0 || i15 < 0 || i13 >= 64 || i14 >= 64 || i15 >= 64 || worldArray[i13 + i14 * 64 + i15 * 4096] > 0) {
-                                if (iter != 1)
-                                    break OUTER;
+                            // check collision with world bounds and world blocks
+                            if (colliderBlockX < 0 || colliderBlockY < 0 || colliderBlockZ < 0
+                                    || colliderBlockX >= WORLD_SIZE || colliderBlockY >= WORLD_HEIGHT || colliderBlockZ >= WORLD_SIZE
+                                    || worldArray[colliderBlockX + colliderBlockY * WORLD_HEIGHT + colliderBlockZ * 4096] > 0) {
                                 
-                                // if we're not already going up and we press space
+                                if (axisIndex != 1) //not checking for vertical movement
+                                    break OUTER; //movement is invalid
+                                
+                                // if we're falling, colliding, and we press space
                                 if (input[KeyEvent.VK_SPACE] > 0 && velocityY > 0.0F) {
                                     input[KeyEvent.VK_SPACE] = 0;
-                                    velocityY = -0.1F;
+                                    velocityY = -0.1F; // jump
                                     break OUTER;
                                 }
                                 
+                                // stop vertical movement (is this needed?)
                                 velocityY = 0.0F;
                                 break OUTER;
                             }
@@ -234,12 +243,13 @@ public class Minecraft4k
                 }
                 
                 for (int i8 = 0; i8 < 12; i8++) {
-                    int i9 = (int)(playerX + (i8 >> 0 & 1) * 0.6F - 0.3F) - 64;
-                    int i10 = (int)(playerY + ((i8 >> 2) - 1) * 0.8F + 0.65F) - 64;
-                    int i11 = (int)(playerZ + (i8 >> 1 & 1) * 0.6F - 0.3F) - 64;
+                    int magicX = (int)(playerX + (i8 >> 0 & 1) * 0.6F - 0.3F) - WORLD_SIZE;
+                    int magicY = (int)(playerY + ((i8 >> 2) - 1) * 0.8F + 0.65F) - WORLD_HEIGHT;
+                    int magicZ = (int)(playerZ + (i8 >> 1 & 1) * 0.6F - 0.3F) - WORLD_SIZE;
                     
-                    if (i9 >= 0 && i10 >= 0 && i11 >= 0 && i9 < 64 && i10 < 64 && i11 < 64)
-                        worldArray[i9 + i10 * 64 + i11 * 4096] = 0;
+                    // check if hovered block is within world boundaries
+                    if (magicX >= 0 && magicY >= 0 && magicZ >= 0 && magicX < WORLD_SIZE && magicY < WORLD_HEIGHT && magicZ < WORLD_SIZE)
+                        worldArray[magicX + magicY * WORLD_HEIGHT + magicZ * 4096] = 0;
                 }
                 
                 // render the screen 214x120
