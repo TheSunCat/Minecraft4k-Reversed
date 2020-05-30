@@ -126,22 +126,27 @@ public class Minecraft4k
             
             long startTime = System.currentTimeMillis();
             
-            float f1 = 96.5F;
-            float f2 = 65.0F;
-            float f3 = 96.5F;
-            float f4 = 0.0F;
-            float f5 = 0.0F;
-            float f6 = 0.0F;
-            int i4 = -1;
+            float playerX = 96.5F;
+            float playerY = 65.0F; // higher val means lower
+            float playerZ = 96.5F;
+            float velocityX = 0.0F;
+            float velocityY = 0.0F;
+            float velocityZ = 0.0F;
+            int hoveredBlock = -1;
             int i5 = 0;
-            float f7 = 0.0F;
-            float f8 = 0.0F;
+            float cameraYaw = 0.0F;
+            float cameraPitch = 0.0F;
             
             while (true) {
-                float f9 = (float)Math.sin(f7);
-                float f10 = (float)Math.cos(f7);
-                float f11 = (float)Math.sin(f8);
-                float f12 = (float)Math.cos(f8);
+                if(input[KeyEvent.VK_Q] == 1)
+                {
+                    System.out.println("DEBUG::BREAK");
+                }
+                
+                float f9 = (float)Math.sin(cameraYaw);
+                float f10 = (float)Math.cos(cameraYaw);
+                float f11 = (float)Math.sin(cameraPitch);
+                float f12 = (float)Math.cos(cameraPitch);
                 
                 while (System.currentTimeMillis() - startTime > 10L) {
                     if (input[MOUSE_X] > 0) {
@@ -153,33 +158,33 @@ public class Minecraft4k
                             f15 = 0.0F;
                         
                         if (f15 > 0.0F) {
-                            f7 += f13 * f15 / 400.0F;
-                            f8 -= f14 * f15 / 400.0F;
+                            cameraYaw += f13 * f15 / 400.0F;
+                            cameraPitch -= f14 * f15 / 400.0F;
                             
-                            if (f8 < -1.57F)
-                                f8 = -1.57F;
+                            if (cameraPitch < -1.57F)
+                                cameraPitch = -1.57F;
                             
-                            if (f8 > 1.57F)
-                                f8 = 1.57F;
+                            if (cameraPitch > 1.57F)
+                                cameraPitch = 1.57F;
                         }
                     }
                     
                     startTime += 10L;
                     float inputX = (input[KeyEvent.VK_D] - input[KeyEvent.VK_A]) * 0.02F;
                     float inputZ = (input[KeyEvent.VK_W] - input[KeyEvent.VK_S]) * 0.02F;
-                    f4 *= 0.5F;
-                    f5 *= 0.99F;
-                    f6 *= 0.5F;
-                    f4 += f9 * inputZ + f10 * inputX;
-                    f6 += f10 * inputZ - f9 * inputX;
-                    f5 += 0.003F;
+                    velocityX *= 0.5F;
+                    velocityY *= 0.99F;
+                    velocityZ *= 0.5F;
+                    velocityX += f9 * inputZ + f10 * inputX;
+                    velocityZ += f10 * inputZ - f9 * inputX;
+                    velocityY += 0.003F;
                     int i8;
                     
                     OUTER:
                     for (i8 = 0; i8 < 3; i8++) {
-                        float f16 = f1 + f4 * ((i8 + 0) % 3 / 2);
-                        float f17 = f2 + f5 * ((i8 + 1) % 3 / 2);
-                        float f19 = f3 + f6 * ((i8 + 2) % 3 / 2);
+                        float f16 = playerX + velocityX * ((i8 + 0) % 3 / 2);
+                        float f17 = playerY + velocityY * ((i8 + 1) % 3 / 2);
+                        float f19 = playerZ + velocityZ * ((i8 + 2) % 3 / 2);
                         
                         for (int i12 = 0; i12 < 12; i12++) {
                             int i13 = (int)(f16 + (i12 >> 0 & 1) * 0.6F - 0.3F) - 64;
@@ -190,40 +195,40 @@ public class Minecraft4k
                                 if (i8 != 1)
                                     break OUTER;
                                 
-                                if (input[KeyEvent.VK_SPACE] > 0 && f5 > 0.0F) {
+                                if (input[KeyEvent.VK_SPACE] > 0 && velocityY > 0.0F) {
                                     input[KeyEvent.VK_SPACE] = 0;
-                                    f5 = -0.1F;
+                                    velocityY = -0.1F;
                                     break OUTER;
                                 }
                                 
-                                f5 = 0.0F;
+                                velocityY = 0.0F;
                                 break OUTER;
                             }
                         }
                         
-                        f1 = f16;
-                        f2 = f17;
-                        f3 = f19;
+                        playerX = f16;
+                        playerY = f17;
+                        playerZ = f19;
                     }
                 }
                 
                 int i6 = 0;
                 int i7 = 0;
                 
-                if (input[1] > 0 && i4 > 0) {
-                    worldArray[i4] = 0;
+                if (input[1] > 0 && hoveredBlock > 0) {
+                    worldArray[hoveredBlock] = 0;
                     input[1] = 0;
                 }
                 
-                if (input[0] > 0 && i4 > 0) {
-                    worldArray[i4 + i5] = 1;
+                if (input[0] > 0 && hoveredBlock > 0) {
+                    worldArray[hoveredBlock + i5] = 1;
                     input[0] = 0;
                 }
                 
                 for (int i8 = 0; i8 < 12; i8++) {
-                    int i9 = (int)(f1 + (i8 >> 0 & 1) * 0.6F - 0.3F) - 64;
-                    int i10 = (int)(f2 + ((i8 >> 2) - 1) * 0.8F + 0.65F) - 64;
-                    int i11 = (int)(f3 + (i8 >> 1 & 1) * 0.6F - 0.3F) - 64;
+                    int i9 = (int)(playerX + (i8 >> 0 & 1) * 0.6F - 0.3F) - 64;
+                    int i10 = (int)(playerY + ((i8 >> 2) - 1) * 0.8F + 0.65F) - 64;
+                    int i11 = (int)(playerZ + (i8 >> 1 & 1) * 0.6F - 0.3F) - 64;
                     
                     if (i9 >= 0 && i10 >= 0 && i11 >= 0 && i9 < 64 && i10 < 64 && i11 < 64)
                         worldArray[i9 + i10 * 64 + i11 * 4096] = 0;
@@ -258,21 +263,21 @@ public class Minecraft4k
                             float f29 = f24 * f28;
                             float f30 = f23 * f28;
                             float f31 = f25 * f28;
-                            float f32 = f1 - (int)f1;
+                            float f32 = playerX - (int)playerX;
                             
                             if (i18 == 1)
-                                f32 = f2 - (int)f2;
+                                f32 = playerY - (int)playerY;
                             
                             if (i18 == 2)
-                                f32 = f3 - (int)f3;
+                                f32 = playerZ - (int)playerZ;
                             
                             if (f27 > 0.0F)
                                 f32 = 1.0F - f32;
                             
                             float f33 = f28 * f32;
-                            float f34 = f1 + f29 * f32;
-                            float f35 = f2 + f30 * f32;
-                            float f36 = f3 + f31 * f32;
+                            float f34 = playerX + f29 * f32;
+                            float f35 = playerY + f30 * f32;
+                            float f36 = playerZ + f31 * f32;
                             
                             if (f27 < 0.0F) {
                                 if (i18 == 0)
@@ -309,7 +314,7 @@ public class Minecraft4k
                                     }
                                     
                                     int i26 = 16777215;
-                                    if (i24 != i4 || (i6 > 0 && i7 % 16 > 0 && i6 < 15 && i7 % 16 < 15))
+                                    if (i24 != hoveredBlock || (i6 > 0 && i7 % 16 > 0 && i6 < 15 && i7 % 16 < 15))
                                         i26 = arrayOfInt3[i6 + i7 * 16 + i25 * 256 * 3];
                                     
                                     if (f33 < f26 && x == input[MOUSE_X] / 4 && y == input[MOUSE_Y] / 4) {
@@ -344,7 +349,7 @@ public class Minecraft4k
                     }
                 }
                 
-                i4 = (int)i8;
+                hoveredBlock = (int)i8;
                 
                 Thread.sleep(20L);
                 repaint();
@@ -369,8 +374,6 @@ class MinecraftEventListener implements KeyListener, MouseListener, MouseMotionL
 
     @Override
     public void keyPressed(KeyEvent e) {
-        System.out.println(e.getKeyCode());
-        
         Minecraft4k.input[e.getKeyCode()] = 1;
     }
 
