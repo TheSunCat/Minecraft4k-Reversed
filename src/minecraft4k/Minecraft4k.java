@@ -256,7 +256,7 @@ public class Minecraft4k
                     }
                 }
                 
-                System.out.println(playerY);
+                //System.out.println(i5);
                 
                 int i6 = 0;
                 int i7 = 0;
@@ -286,19 +286,18 @@ public class Minecraft4k
                 // render the screen 214x120
                 float newHoveredBlock = -1.0F;
                 for (int x = 0; x < SCR_WIDTH; x++) {
-                    float f18 = (x - 107) / 90.0F;
+                    float f18 = (x - (SCR_WIDTH / 2)) / 90.0F;
                     
                     for (int y = 0; y < SCR_HEIGHT; y++) {
-                        float f20 = (y - 60) / 90.0F;
-                        float f21 = 1.0F;
-                        float f22 = f21 * cosPitch + f20 * sinPitch;
-                        float f23 = f20 * cosPitch - f21 * sinPitch;
+                        float f20 = (y - (SCR_HEIGHT / 2)) / 90.0F;
+                        float f22 = cosPitch + f20 * sinPitch;
+                        float f23 = f20 * cosPitch - sinPitch;
                         float f24 = f18 * cosYaw + f22 * sinyaw;
                         float f25 = f22 * cosYaw - f18 * sinyaw;
                         int i16 = 0;
                         int i17 = 255;
-                        double d = 20.0D;
-                        float f26 = 5.0F;
+                        double renderDistSorta = 20.0D;
+                        float playerReach = 5.0F;
                         
                         for (int i18 = 0; i18 < 3; i18++) {
                             float f27 = f24;
@@ -339,7 +338,7 @@ public class Minecraft4k
                                     f36--;
                             }
                             
-                            while (f33 < d) {
+                            while (f33 < renderDistSorta) {
                                 int i21 = (int)f34 - 64;
                                 int i22 = (int)f35 - 64;
                                 int i23 = (int)f36 - 64;
@@ -366,21 +365,21 @@ public class Minecraft4k
                                     if (i24 != hoveredBlock || (i6 > 0 && i7 % 16 > 0 && i6 < 15 && i7 % 16 < 15))
                                         i26 = textureAtlas[i6 + i7 * 16 + i25 * 256 * 3];
                                     
-                                    if (f33 < f26 && x == input[MOUSE_X] / 4 && y == input[MOUSE_Y] / 4) {
+                                    if (f33 < playerReach && x == input[MOUSE_X] / 4 && y == input[MOUSE_Y] / 4) {
                                         newHoveredBlock = i24;
                                         i5 = 1;
                                         if (f27 > 0.0F)
                                             i5 = -1;
                                         
                                         i5 <<= 6 * i18;
-                                        f26 = f33;
+                                        playerReach = f33;
                                     }
                                     
                                     if (i26 > 0) {
                                         i16 = i26;
                                         i17 = 255 - (int)(f33 / 20.0F * 255.0F);
                                         i17 = i17 * (255 - (i18 + 2) % 3 * 50) / 255;
-                                        d = f33;
+                                        renderDistSorta = f33;
                                     }
                                 }
                                 
