@@ -183,12 +183,10 @@ public class Minecraft4k
                 float cosPitch = (float)Math.cos(cameraPitch);
                 
                 while (System.currentTimeMillis() - startTime > 10L) {
-                    if (input[MOUSE_X] > 0) {
+                    if (input[MOUSE_X] != 0 && input[MOUSE_Y] != 0) {
                         float xFromCenter = (input[MOUSE_X] - SCR_WIDTH * 1.5F) / (float) SCR_WIDTH * 2.0F;
                         float yFromCenter = (input[MOUSE_Y] - SCR_HEIGHT * 1.5F) / (float) SCR_HEIGHT * 2.0F;
                         float mouseDist = (float)Math.sqrt((xFromCenter * xFromCenter + yFromCenter * yFromCenter)) - 1.2F;
-                        
-                        System.out.println("x = " + xFromCenter + ", y = " + yFromCenter + ", mouseDist= " + mouseDist);
                         
                         if (mouseDist < 0.0F)
                             mouseDist = 0.0F;
