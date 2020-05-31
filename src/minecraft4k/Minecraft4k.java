@@ -66,65 +66,82 @@ public class Minecraft4k
                 worldArray[i] = block;
             }
             
-            int[] arrayOfInt3 = new int[12288];
-            for (int j = 1; j < 16; j++) {
-                int k = 255 - rand.nextInt(96);
-                
-                for (int m = 0; m < 48; m++) {
-                    for (int n = 0; n < 16; n++) {
-                        int i1 = 9858122;
-                        if (j == 4)
-                            i1 = 8355711;
-                        
-                        if (j != 4 || rand.nextInt(3) == 0)
-                            k = 255 - rand.nextInt(96);
-                        
-                        if (j == 1 && m < (n * n * 3 + n * 81 >> 2 & 0x3) + 18)
-                            i1 = 6990400;
-                        else if (j == 1 && m < (n * n * 3 + n * 81 >> 2 & 0x3) + 19)
-                            k = k * 2 / 3;
-                            
-                        if (j == 7) {
-                            i1 = 6771249;
-                            if (n > 0 && n < 15 && ((m > 0 && m < 15) || (m > 32 && m < 47))) {
-                                i1 = 12359778;
-                                int i2 = n - 7;
-                                int i3 = (m & 0xF) - 7;
-                                
-                                if (i2 < 0)
-                                    i2 = 1 - i2;
-                                
-                                if (i3 < 0)
-                                    i3 = 1 - i3;
-                                
-                                if (i3 > i2)
-                                    i2 = i3;
-                                
-                                k = 196 - rand.nextInt(32) + i2 % 3 * 32;
+            int[] textureAtlas = new int[12288];
+            //procedually generates the 16x3 textureAtlas with a tileSize of 16
+            //gsd = grayscale detail
+            for (int blockType = 1; blockType < 16; blockType++) {
+                int gsd_tempA = 255 - rand.nextInt(96);
+
+                for (int y = 0; y < 48; y++) {
+                    for (int x = 0; x < 16; x++) {
+                        //gets executed per pixel/texel
+
+                        int tint = 0x966C4A; //brown (dirt)
+                        if (blockType == 4) //stone
+                            tint = 0x7F7F7F; //grey
+
+                        if (blockType != 4 || rand.nextInt(3) == 0) //if the block type is stone, update the noise value less often to get a streched out look
+                            gsd_tempA = 255 - rand.nextInt(96);
+
+                        if (blockType == 1 && y < (x * x * 3 + x * 81 >> 2 & 0x3) + 18) //grass + grass edge
+                            tint = 0x6AAA40; //green
+                        else if (blockType == 1 && y < (x * x * 3 + x * 81 >> 2 & 0x3) + 19) //grass edge shadow
+                            gsd_tempA = gsd_tempA * 2 / 3;
+
+                        if (blockType == 7) { //wood
+                            tint = 0x675231; //brown (bark)
+                            if (x > 0 && x < 15 && ((y > 0 && y < 15) || (y > 32 && y < 47))) { //wood inside area
+                                tint = 0xBC9862; //light brown
+
+                                //the following code repurses 2 gsd variables making it a bit hard to read
+                                //but in short it gets the absulte distance from the tile's center in x and y direction 
+                                //finds the max of it
+                                //uses that to make the gray scale detail darker if the current pixel is part of an annual ring
+                                //and adds some noice as a finishig touch
+                                int gsd_final = x - 7;
+                                int gsd_tempB = (y & 0xF) - 7;
+
+                                if (gsd_final < 0)
+                                    gsd_final = 1 - gsd_final;
+
+                                if (gsd_tempB < 0)
+                                    gsd_tempB = 1 - gsd_tempB;
+
+                                if (gsd_tempB > gsd_final)
+                                    gsd_final = gsd_tempB;
+
+                                gsd_tempA = 196 - rand.nextInt(32) + gsd_final % 3 * 32;
                             } else if (rand.nextInt(2) == 0) {
-                                k = k * (150 - (n & 1) * 100) / 100;
+                                //make the gsd 50% brighter on random pixels of the bark
+                                //and 50% darker if x happens to be odd
+                                gsd_tempA = gsd_tempA * (150 - (x & 1) * 100) / 100;
                             }
                         }
-                        
-                        if (j == 5) {
-                            i1 = 11876885;
-                            if ((n + m / 4 * 4) % 8 == 0 || m % 4 == 0)
-                                i1 = 12365733;
+
+                        if (blockType == 5) { //bricks
+                            tint = 0xB53A15; //red
+                            if ((x + y / 4 * 4) % 8 == 0 || y % 4 == 0) //gap between bricks
+                                tint = 0xBCAFA5; //redish light grey
                         }
-                        
-                        int i2 = k;
-                        if (m >= 32)
-                            i2 /= 2;
-                        
-                        if (j == 8) {
-                            i1 = 5298487;
+
+                        int gsd_final = gsd_tempA;
+                        if (y >= 32) //bottom side of the block
+                            gsd_final /= 2; //has to be darker
+
+                        if (blockType == 8) { //leaves
+                            tint = 0x50D937; //green
                             if (rand.nextInt(2) == 0) {
-                                i1 = 0;
-                                i2 = 255;
+                                tint = 0;
+                                gsd_final = 255;
                             }
                         }
-                        int i3 = (i1 >> 16 & 0xFF) * i2 / 255 << 16 | (i1 >> 8 & 0xFF) * i2 / 255 << 8 | (i1 & 0xFF) * i2 / 255;
-                        arrayOfInt3[n + m * 16 + j * 256 * 3] = i3;
+                        //multiply tint by the grayscale detail
+                        int col = (tint >> 16 & 0xFF) * gsd_final / 255 << 16 |
+                                  (tint >>  8 & 0xFF) * gsd_final / 255 << 8 | 
+                                  (tint       & 0xFF) * gsd_final / 255;
+
+                        //write pixel to the texture atlas
+                        textureAtlas[x + y * 16 + blockType * 256 * 3] = col;
                     }
                 }
             }
@@ -185,7 +202,7 @@ public class Minecraft4k
                     velocityY += 0.003F;
                     
                     
-                    //check for movement on each axis individually
+                    //check for movement on each axis individually (thanks JuPaHe64!)
                     OUTER:
                     for (int axisIndex = 0; axisIndex < 3; axisIndex++) {
                         float newPlayerX = playerX + velocityX * ((axisIndex + 0) % 3 / 2);
@@ -333,7 +350,7 @@ public class Minecraft4k
                                     
                                     int i26 = 16777215;
                                     if (i24 != hoveredBlock || (i6 > 0 && i7 % 16 > 0 && i6 < 15 && i7 % 16 < 15))
-                                        i26 = arrayOfInt3[i6 + i7 * 16 + i25 * 256 * 3];
+                                        i26 = textureAtlas[i6 + i7 * 16 + i25 * 256 * 3];
                                     
                                     if (f33 < f26 && x == input[MOUSE_X] / 4 && y == input[MOUSE_Y] / 4) {
                                         newHoveredBlock = i24;
