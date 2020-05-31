@@ -1,8 +1,8 @@
 package minecraft4k;
 
 import java.awt.Graphics;
+import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
@@ -28,12 +28,18 @@ public class Minecraft4k
     final static int WORLD_SIZE = 64;
     final static int WORLD_HEIGHT = 64;
     
+    final static int AXIS_X = 0;
+    final static int AXIS_Y = 1;
+    final static int AXIS_Z = 2;
+    
     final static int BLOCK_AIR = 0;
     final static int BLOCK_GRASS = 1;
     final static int BLOCK_STONE = 4;
     final static int BLOCK_BRICKS = 5;
     final static int BLOCK_WOOD = 7;
     final static int BLOCK_LEAVES = 8;
+    
+    final static int TEXTURE_SIZE = 16;
     
     public static void main(String[] args)
     {
@@ -73,7 +79,7 @@ public class Minecraft4k
                 world[i] = block;
             }
             
-            int[] textureAtlas = new int[12288];
+            int[] textureAtlas = new int[16 * 3 * TEXTURE_SIZE * TEXTURE_SIZE];
             // procedually generates the 16x3 textureAtlas with a tileSize of 16
             // gsd = grayscale detail
             for (int blockType = 1; blockType < 16; blockType++) {
@@ -147,6 +153,7 @@ public class Minecraft4k
                                 gsd_final = 255;
                             }
                         }
+                        
                         // multiply tint by the grayscale detail
                         int col = (tint >> 16 & 0xFF) * gsd_final / 255 << 16 |
                                   (tint >>  8 & 0xFF) * gsd_final / 255 << 8 | 
@@ -167,7 +174,7 @@ public class Minecraft4k
             float velocityY = 0.0F;
             float velocityZ = 0.0F;
             int hoveredBlock = -1; // index in world array
-            int i5 = 0; // idk, changes depending on hovered block sort of
+            int placeBlockOffset = 0; // idk, changes depending on hovered block sort of
             float cameraYaw = 0.0F;
             float cameraPitch = 0.0F;
             
@@ -236,7 +243,7 @@ public class Minecraft4k
                                     break OUTER; //movement is invalid
                                 
                                 // if we're falling, colliding, and we press space
-                                if (input[KeyEvent.VK_SPACE] > 0 && velocityY > 0.0F) {
+                                if (input[KeyEvent.VK_SPACE] == 1 && velocityY > 0.0F) {
                                     input[KeyEvent.VK_SPACE] = 0;
                                     velocityY = -0.1F; // jump
                                     break OUTER;
@@ -254,8 +261,6 @@ public class Minecraft4k
                     }
                 }
                 
-                //System.out.println(i5);
-                
                 int i6 = 0;
                 int i7 = 0;
                 
@@ -267,7 +272,7 @@ public class Minecraft4k
                 
                 // place block
                 if (input[MOUSE_RIGHT] > 0 && hoveredBlock > BLOCK_AIR) {
-                    world[hoveredBlock + i5] = BLOCK_GRASS;
+                    world[hoveredBlock + placeBlockOffset] = BLOCK_GRASS;
                     input[MOUSE_RIGHT] = 0;
                 }
                 
@@ -281,65 +286,88 @@ public class Minecraft4k
                         world[magicX + magicY * WORLD_HEIGHT + magicZ * 4096] = BLOCK_AIR;
                 }
                 
-                // render the screen 214x120
+                // render the screen
                 float newHoveredBlock = -1.0F;
-                for (int x = 0; x < SCR_WIDTH; x++) {
-                    float f18 = (x - (SCR_WIDTH / 2)) / 90.0F;
+                for (int screenX = 0; screenX < SCR_WIDTH; screenX++) {
+                    float xDistSmall = (screenX - (SCR_WIDTH / 2)) / 90.0F;
                     
-                    for (int y = 0; y < SCR_HEIGHT; y++) {
-                        float f20 = (y - (SCR_HEIGHT / 2)) / 90.0F;
-                        float f22 = cosPitch + f20 * sinPitch;
-                        float f23 = f20 * cosPitch - sinPitch;
-                        float f24 = f18 * cosYaw + f22 * sinyaw;
-                        float f25 = f22 * cosYaw - f18 * sinyaw;
+                    for (int screenY = 0; screenY < SCR_HEIGHT; screenY++) {
+                        float yDistSmall = (screenY - (SCR_HEIGHT / 2)) / 90.0F;
+                        
+                        float temp = cosPitch + yDistSmall * sinPitch;
+                        
+                        float rayDirX = xDistSmall * cosYaw + temp * sinyaw;
+                        float rayDirY = yDistSmall * cosPitch - sinPitch;
+                        float rayDirZ = temp * cosYaw - xDistSmall * sinyaw;
+                        
                         int i16 = 0;
-                        int i17 = 255;
+                        int fogIntensity = 0x00;
                         double renderDistSorta = 20.0D;
                         float playerReach = 5.0F;
                         
-                        for (int i18 = 0; i18 < 3; i18++) {
-                            float f27 = f24;
-                            if (i18 == 1)
-                                f27 = f23;
-                            
-                            if (i18 == 2)
-                                f27 = f25;
-                            
-                            float f28 = 1.0F / ((f27 < 0.0F) ? -f27 : f27);
-                            float f29 = f24 * f28;
-                            float f30 = f23 * f28;
-                            float f31 = f25 * f28;
-                            float f32 = playerX - (int)playerX;
-                            
-                            if (i18 == 1)
-                                f32 = playerY - (int)playerY;
-                            
-                            if (i18 == 2)
-                                f32 = playerZ - (int)playerZ;
-                            
-                            if (f27 > 0.0F)
-                                f32 = 1.0F - f32;
-                            
-                            float f33 = f28 * f32;
-                            float f34 = playerX + f29 * f32;
-                            float f35 = playerY + f30 * f32;
-                            float f36 = playerZ + f31 * f32;
-                            
-                            if (f27 < 0.0F) {
-                                if (i18 == 0)
-                                    f34--;
-                                
-                                if (i18 == 1)
-                                    f35--;
-                                
-                                if (i18 == 2)
-                                    f36--;
+                        for (int axis = 0; axis < 3; axis++) {
+                            float delta;
+                            switch(axis)
+                            {
+                                default:
+                                case AXIS_X:
+                                    delta = rayDirX;
+                                    break;
+                                case AXIS_Y:
+                                    delta = rayDirY;
+                                    break;
+                                case AXIS_Z:
+                                    delta = rayDirZ;
+                                    break;
                             }
                             
-                            while (f33 < renderDistSorta) {
-                                int i21 = (int)f34 - 64;
-                                int i22 = (int)f35 - 64;
-                                int i23 = (int)f36 - 64;
+                            float f28 = 1.0f / Math.abs(delta);
+                            
+                            
+                            float rayDeltaX = rayDirX * f28;
+                            float rayDeltaY = rayDirY * f28;
+                            float rayDeltaZ = rayDirZ * f28;
+                            
+                            
+                            float floatComponent;
+                            switch(axis)
+                            {
+                                default:
+                                case AXIS_X:
+                                    floatComponent = playerX % 1.0f;
+                                    break;
+                                case AXIS_Y:
+                                    floatComponent = playerY % 1.0f;
+                                    break;
+                                case AXIS_Z:
+                                    floatComponent = playerZ % 1.0f;
+                                    break;
+                            }
+                            
+                            if (delta > 0)
+                                floatComponent = 1.0f - floatComponent;
+                            
+                            float rayTravelDist = f28 * floatComponent;
+                            
+                            float rayX = playerX + rayDeltaX * floatComponent;
+                            float rayY = playerY + rayDeltaY * floatComponent;
+                            float rayZ = playerZ + rayDeltaZ * floatComponent;
+                            
+                            if (delta < 0.0F) {
+                                if (axis == 0)
+                                    rayX--;
+                                
+                                if (axis == 1)
+                                    rayY--;
+                                
+                                if (axis == 2)
+                                    rayZ--;
+                            }
+                            
+                            while (rayTravelDist < renderDistSorta) {
+                                int i21 = (int) rayX - 64;
+                                int i22 = (int) rayY - 64;
+                                int i23 = (int) rayZ - 64;
                                 
                                 if (i21 < 0 || i22 < 0 || i23 < 0 || i21 >= 64 || i22 >= 64 || i23 >= 64)
                                     break;
@@ -348,50 +376,53 @@ public class Minecraft4k
                                 int i25 = world[i24];
                                 
                                 if (i25 > 0) {
-                                    i6 = (int)((f34 + f36) * 16.0F) & 0xF;
-                                    i7 = ((int)(f35 * 16.0F) & 0xF) + 16;
+                                    i6 = (int)((rayX + rayZ) * 16.0F) & 0xF;
+                                    i7 = ((int)(rayY * 16.0F) & 0xF) + 16;
                                     
-                                    if (i18 == 1) {
-                                        i6 = (int)(f34 * 16.0F) & 0xF;
-                                        i7 = (int)(f36 * 16.0F) & 0xF;
+                                    if (axis == AXIS_Y) {
+                                        i6 = (int)(rayX * 16.0F) & 0xF;
+                                        i7 = (int)(rayZ * 16.0F) & 0xF;
                                         
-                                        if (f30 < 0.0F)
+                                        if (rayDeltaY < 0.0F)
                                             i7 += 32;
                                     }
                                     
-                                    int i26 = 16777215;
+                                    int i26 = 0xFFFFFF; // white
                                     if (i24 != hoveredBlock || (i6 > 0 && i7 % 16 > 0 && i6 < 15 && i7 % 16 < 15))
                                         i26 = textureAtlas[i6 + i7 * 16 + i25 * 256 * 3];
                                     
-                                    if (f33 < playerReach && x == input[MOUSE_X] / 4 && y == input[MOUSE_Y] / 4) {
+                                    if (rayTravelDist < playerReach && screenX == input[MOUSE_X] / 4 && screenY == input[MOUSE_Y] / 4) {
                                         newHoveredBlock = i24;
-                                        i5 = 1;
-                                        if (f27 > 0.0F)
-                                            i5 = -1;
+                                        placeBlockOffset = 1;
+                                        if (delta > 0.0F)
+                                            placeBlockOffset = -1;
                                         
-                                        i5 <<= 6 * i18;
-                                        playerReach = f33;
+                                        placeBlockOffset *= Math.pow(WORLD_SIZE, axis);
+                                        playerReach = rayTravelDist;
                                     }
                                     
                                     if (i26 > 0) {
                                         i16 = i26;
-                                        i17 = 255 - (int)(f33 / 20.0F * 255.0F);
-                                        i17 = i17 * (255 - (i18 + 2) % 3 * 50) / 255;
-                                        renderDistSorta = f33;
+                                        fogIntensity = 0xFF - (int)(rayTravelDist / 20.0F * 0xFF);
+                                        fogIntensity = fogIntensity * (0xFF - (axis + 2) % 3 * 50) / 0xFF;
+                                        renderDistSorta = rayTravelDist;
                                     }
                                 }
                                 
-                                f34 += f29;
-                                f35 += f30;
-                                f36 += f31;
-                                f33 += f28;
+                                // xyz?
+                                rayX += rayDeltaX;
+                                rayY += rayDeltaY;
+                                rayZ += rayDeltaZ;
+                                
+                                rayTravelDist += f28;
                             }
                         }
                         
-                        int i18 = (i16 >> 16 & 0xFF) * i17 / 255;
-                        int i19 = (i16 >> 8 & 0xFF) * i17 / 255;
-                        int i20 = (i16 & 0xFF) * i17 / 255;
-                        screenBuffer[x + y * SCR_WIDTH] = i18 << 16 | i19 << 8 | i20;
+                        int pixelR = (i16 >> 16 & 0xFF) * fogIntensity / 0xFF;
+                        int pixelG = (i16 >> 8  & 0xFF) * fogIntensity / 0xFF;
+                        int pixelB = (i16       & 0xFF) * fogIntensity / 0xFF;
+                        
+                        screenBuffer[screenX + screenY * SCR_WIDTH] = pixelR << 16 | pixelG << 8 | pixelB;
                     }
                 }
                 
@@ -413,11 +444,8 @@ public class Minecraft4k
     }
 }
 
-class MinecraftEventListener implements KeyListener, MouseListener, MouseMotionListener
+class MinecraftEventListener extends KeyAdapter implements MouseListener, MouseMotionListener
 {
-    @Override
-    public void keyTyped(KeyEvent e) {}
-
     @Override
     public void keyPressed(KeyEvent e) {
         Minecraft4k.input[e.getKeyCode()] = 1;
@@ -427,9 +455,6 @@ class MinecraftEventListener implements KeyListener, MouseListener, MouseMotionL
     public void keyReleased(KeyEvent e) {
         Minecraft4k.input[e.getKeyCode()] = 0;
     }
-
-    @Override
-    public void mouseClicked(MouseEvent e) {}
 
     @Override
     public void mousePressed(MouseEvent e) {
@@ -453,20 +478,23 @@ class MinecraftEventListener implements KeyListener, MouseListener, MouseMotionL
     }
 
     @Override
-    public void mouseEntered(MouseEvent e) {}
-
-    @Override
     public void mouseExited(MouseEvent e) {
         Minecraft4k.input[Minecraft4k.MOUSE_X] = 0;
         Minecraft4k.input[Minecraft4k.MOUSE_Y] = 0;
     }
 
     @Override
-    public void mouseDragged(MouseEvent e) {}
-
-    @Override
     public void mouseMoved(MouseEvent e) {
         Minecraft4k.input[Minecraft4k.MOUSE_X] = e.getX();
         Minecraft4k.input[Minecraft4k.MOUSE_Y] = e.getY();
     }
+
+    @Override
+    public void mouseClicked(MouseEvent e) {}
+
+    @Override
+    public void mouseEntered(MouseEvent e) {}
+
+    @Override
+    public void mouseDragged(MouseEvent e) {}
 }
