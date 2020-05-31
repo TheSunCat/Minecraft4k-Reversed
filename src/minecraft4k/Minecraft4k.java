@@ -184,16 +184,18 @@ public class Minecraft4k
                 
                 while (System.currentTimeMillis() - startTime > 10L) {
                     if (input[MOUSE_X] > 0) {
-                        float f13 = (input[MOUSE_X] - 428) / (float) SCR_WIDTH * 2.0F;
-                        float f14 = (input[MOUSE_Y] - 240) / (float) SCR_HEIGHT * 2.0F;
-                        float f15 = (float)Math.sqrt((f13 * f13 + f14 * f14)) - 1.2F;
+                        float f13 = (input[MOUSE_X] - SCR_WIDTH * 1.5F) / (float) SCR_WIDTH * 2.0F;
+                        float f14 = (input[MOUSE_Y] - SCR_HEIGHT * 1.5F) / (float) SCR_HEIGHT * 2.0F;
+                        float mouseDist = (float)Math.sqrt((f13 * f13 + f14 * f14)) - 1.2F;
                         
-                        if (f15 < 0.0F)
-                            f15 = 0.0F;
+                        System.out.println("x = " + f13 + ", y = " + f14 + ", mouseDist= " + mouseDist);
                         
-                        if (f15 > 0.0F) {
-                            cameraYaw += f13 * f15 / 400.0F;
-                            cameraPitch -= f14 * f15 / 400.0F;
+                        if (mouseDist < 0.0F)
+                            mouseDist = 0.0F;
+                        
+                        if (mouseDist > 0.0F) {
+                            cameraYaw += f13 * mouseDist / 400.0F;
+                            cameraPitch -= f14 * mouseDist / 400.0F;
                             
                             if (cameraPitch < -1.57F)
                                 cameraPitch = -1.57F;
