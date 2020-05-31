@@ -28,6 +28,13 @@ public class Minecraft4k
     final static int WORLD_SIZE = 64;
     final static int WORLD_HEIGHT = 64;
     
+    final static int BLOCK_AIR = 0;
+    final static int BLOCK_GRASS = 1;
+    final static int BLOCK_STONE = 4;
+    final static int BLOCK_BRICKS = 5;
+    final static int BLOCK_WOOD = 7;
+    final static int BLOCK_LEAVES = 8;
+    
     public static void main(String[] args)
     {
         JFrame frame = new JFrame("Minecraft4k");
@@ -53,94 +60,99 @@ public class Minecraft4k
             Random rand = new Random(18295169L);
             int[] screenBuffer = ((DataBufferInt)screen.getRaster().getDataBuffer()).getData();
             
-            int[] worldArray = new int[WORLD_SIZE * WORLD_HEIGHT * WORLD_SIZE];
+            int[] world = new int[WORLD_SIZE * WORLD_HEIGHT * WORLD_SIZE];
             
             // fill world with random blocks
-            for (int i = 0; i < worldArray.length; i++) {
+            for (int i = 0; i < world.length; i++) {
                 int block;
                 if(i / 64 % 64 > 32 + rand.nextInt(8))
                     block = (rand.nextInt(8) + 1);
                 else
                     block = 0;
                 
-                worldArray[i] = block;
+                world[i] = block;
             }
             
             int[] textureAtlas = new int[12288];
-            //procedually generates the 16x3 textureAtlas with a tileSize of 16
-            //gsd = grayscale detail
+            // procedually generates the 16x3 textureAtlas with a tileSize of 16
+            // gsd = grayscale detail
             for (int blockType = 1; blockType < 16; blockType++) {
                 int gsd_tempA = 255 - rand.nextInt(96);
 
                 for (int y = 0; y < 48; y++) {
                     for (int x = 0; x < 16; x++) {
-                        //gets executed per pixel/texel
+                        // gets executed per pixel/texel
 
-                        int tint = 0x966C4A; //brown (dirt)
-                        if (blockType == 4) //stone
-                            tint = 0x7F7F7F; //grey
-
-                        if (blockType != 4 || rand.nextInt(3) == 0) //if the block type is stone, update the noise value less often to get a streched out look
+                        int tint = 0x966C4A; // brown (dirt)
+                        
+                        if (blockType != BLOCK_STONE || rand.nextInt(3) == 0) // if the block type is stone, update the noise value less often to get a streched out look
                             gsd_tempA = 255 - rand.nextInt(96);
+                        
+                        switch(blockType)
+                        {
+                            case BLOCK_STONE:
+                                tint = 0x7F7F7F; // grey
+                                break;
+                            case BLOCK_GRASS:
+                                if (y < (x * x * 3 + x * 81 >> 2 & 0x3) + 18) // grass + grass edge
+                                    tint = 0x6AAA40; // green
+                                else if (y < (x * x * 3 + x * 81 >> 2 & 0x3) + 19) // grass edge shadow
+                                    gsd_tempA = gsd_tempA * 2 / 3;
+                                break;
+                            case BLOCK_WOOD:
+                                tint = 0x675231; // brown (bark)
+                                if (x > 0 && x < 15 && ((y > 0 && y < 15) || (y > 32 && y < 47))) { // wood inside area
+                                    tint = 0xBC9862; // light brown
 
-                        if (blockType == 1 && y < (x * x * 3 + x * 81 >> 2 & 0x3) + 18) //grass + grass edge
-                            tint = 0x6AAA40; //green
-                        else if (blockType == 1 && y < (x * x * 3 + x * 81 >> 2 & 0x3) + 19) //grass edge shadow
-                            gsd_tempA = gsd_tempA * 2 / 3;
+                                    // the following code repurposes 2 gsd variables making it a bit hard to read
+                                    // but in short it gets the absulte distance from the tile's center in x and y direction 
+                                    // finds the max of it
+                                    // uses that to make the gray scale detail darker if the current pixel is part of an annual ring
+                                    // and adds some noice as a finishig touch
+                                    int gsd_final = x - 7;
+                                    int gsd_tempB = (y & 0xF) - 7;
 
-                        if (blockType == 7) { //wood
-                            tint = 0x675231; //brown (bark)
-                            if (x > 0 && x < 15 && ((y > 0 && y < 15) || (y > 32 && y < 47))) { //wood inside area
-                                tint = 0xBC9862; //light brown
+                                    if (gsd_final < 0)
+                                        gsd_final = 1 - gsd_final;
 
-                                //the following code repurses 2 gsd variables making it a bit hard to read
-                                //but in short it gets the absulte distance from the tile's center in x and y direction 
-                                //finds the max of it
-                                //uses that to make the gray scale detail darker if the current pixel is part of an annual ring
-                                //and adds some noice as a finishig touch
-                                int gsd_final = x - 7;
-                                int gsd_tempB = (y & 0xF) - 7;
+                                    if (gsd_tempB < 0)
+                                        gsd_tempB = 1 - gsd_tempB;
 
-                                if (gsd_final < 0)
-                                    gsd_final = 1 - gsd_final;
+                                    if (gsd_tempB > gsd_final)
+                                        gsd_final = gsd_tempB;
 
-                                if (gsd_tempB < 0)
-                                    gsd_tempB = 1 - gsd_tempB;
-
-                                if (gsd_tempB > gsd_final)
-                                    gsd_final = gsd_tempB;
-
-                                gsd_tempA = 196 - rand.nextInt(32) + gsd_final % 3 * 32;
-                            } else if (rand.nextInt(2) == 0) {
-                                //make the gsd 50% brighter on random pixels of the bark
-                                //and 50% darker if x happens to be odd
-                                gsd_tempA = gsd_tempA * (150 - (x & 1) * 100) / 100;
-                            }
-                        }
-
-                        if (blockType == 5) { //bricks
-                            tint = 0xB53A15; //red
-                            if ((x + y / 4 * 4) % 8 == 0 || y % 4 == 0) //gap between bricks
-                                tint = 0xBCAFA5; //redish light grey
+                                    gsd_tempA = 196 - rand.nextInt(32) + gsd_final % 3 * 32;
+                                } else if (rand.nextInt(2) == 0) {
+                                    // make the gsd 50% brighter on random pixels of the bark
+                                    // and 50% darker if x happens to be odd
+                                    gsd_tempA = gsd_tempA * (150 - (x & 1) * 100) / 100;
+                                }
+                                break;
+                            case BLOCK_BRICKS:
+                                tint = 0xB53A15; // red
+                                if ((x + y / 4 * 4) % 8 == 0 || y % 4 == 0) // gap between bricks
+                                    tint = 0xBCAFA5; // reddish light grey
+                                break;
+                                
                         }
 
                         int gsd_final = gsd_tempA;
-                        if (y >= 32) //bottom side of the block
-                            gsd_final /= 2; //has to be darker
+                        if (y >= 32) // bottom side of the block
+                            gsd_final /= 2; // has to be darker
 
-                        if (blockType == 8) { //leaves
-                            tint = 0x50D937; //green
+                        if (blockType == BLOCK_LEAVES) {
+                            tint = 0x50D937; // green
                             if (rand.nextInt(2) == 0) {
                                 tint = 0;
                                 gsd_final = 255;
                             }
                         }
-                        //multiply tint by the grayscale detail
+                        // multiply tint by the grayscale detail
                         int col = (tint >> 16 & 0xFF) * gsd_final / 255 << 16 |
                                   (tint >>  8 & 0xFF) * gsd_final / 255 << 8 | 
                                   (tint       & 0xFF) * gsd_final / 255;
 
-                        //write pixel to the texture atlas
+                        // write pixel to the texture atlas
                         textureAtlas[x + y * 16 + blockType * 256 * 3] = col;
                     }
                 }
@@ -218,7 +230,7 @@ public class Minecraft4k
                             // check collision with world bounds and world blocks
                             if (colliderBlockX < 0 || colliderBlockY < 0 || colliderBlockZ < 0
                                     || colliderBlockX >= WORLD_SIZE || colliderBlockY >= WORLD_HEIGHT || colliderBlockZ >= WORLD_SIZE
-                                    || worldArray[colliderBlockX + colliderBlockY * WORLD_HEIGHT + colliderBlockZ * 4096] > 0) {
+                                    || world[colliderBlockX + colliderBlockY * WORLD_HEIGHT + colliderBlockZ * 4096] > BLOCK_AIR) {
                                 
                                 if (axisIndex != 1) //not checking for vertical movement
                                     break OUTER; //movement is invalid
@@ -248,14 +260,14 @@ public class Minecraft4k
                 int i7 = 0;
                 
                 // break block
-                if (input[MOUSE_LEFT] == 1 && hoveredBlock > 0) {
-                    worldArray[hoveredBlock] = 0;
+                if (input[MOUSE_LEFT] == 1 && hoveredBlock > BLOCK_AIR) {
+                    world[hoveredBlock] = BLOCK_AIR;
                     input[MOUSE_LEFT] = 0;
                 }
                 
                 // place block
-                if (input[MOUSE_RIGHT] > 0 && hoveredBlock > 0) {
-                    worldArray[hoveredBlock + i5] = 1;
+                if (input[MOUSE_RIGHT] > 0 && hoveredBlock > BLOCK_AIR) {
+                    world[hoveredBlock + i5] = BLOCK_GRASS;
                     input[MOUSE_RIGHT] = 0;
                 }
                 
@@ -266,7 +278,7 @@ public class Minecraft4k
                     
                     // check if hovered block is within world boundaries
                     if (magicX >= 0 && magicY >= 0 && magicZ >= 0 && magicX < WORLD_SIZE && magicY < WORLD_HEIGHT && magicZ < WORLD_SIZE)
-                        worldArray[magicX + magicY * WORLD_HEIGHT + magicZ * 4096] = 0;
+                        world[magicX + magicY * WORLD_HEIGHT + magicZ * 4096] = BLOCK_AIR;
                 }
                 
                 // render the screen 214x120
@@ -334,7 +346,7 @@ public class Minecraft4k
                                     break;
                                 
                                 int i24 = i21 + i22 * 64 + i23 * 4096;
-                                int i25 = worldArray[i24];
+                                int i25 = world[i24];
                                 
                                 if (i25 > 0) {
                                     i6 = (int)((f34 + f36) * 16.0F) & 0xF;
