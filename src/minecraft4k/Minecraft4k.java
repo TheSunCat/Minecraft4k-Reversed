@@ -64,7 +64,7 @@ public class Minecraft4k
     public void run() {
         try {
             Random rand = new Random(18295169L);
-            int[] screenBuffer = ((DataBufferInt)screen.getRaster().getDataBuffer()).getData();
+            int[] screenBuffer = ((DataBufferInt) screen.getRaster().getDataBuffer()).getData();
             
             int[] world = new int[WORLD_SIZE * WORLD_HEIGHT * WORLD_SIZE];
             
@@ -224,9 +224,9 @@ public class Minecraft4k
                     //check for movement on each axis individually (thanks JuPaHe64!)
                     OUTER:
                     for (int axisIndex = 0; axisIndex < 3; axisIndex++) {
-                        float newPlayerX = playerX + velocityX * ((axisIndex + 0) % 3 / 2);
-                        float newPlayerY = playerY + velocityY * ((axisIndex + 1) % 3 / 2);
-                        float newPlayerZ = playerZ + velocityZ * ((axisIndex + 2) % 3 / 2);
+                        float newPlayerX = playerX + velocityX * ((axisIndex + AXIS_Y) % 3 / 2);
+                        float newPlayerY = playerY + velocityY * ((axisIndex + AXIS_X) % 3 / 2);
+                        float newPlayerZ = playerZ + velocityZ * ((axisIndex + AXIS_Z) % 3 / 2);
                         
                         for (int colliderIndex = 0; colliderIndex < 12; colliderIndex++) {
                             // magic
@@ -239,8 +239,8 @@ public class Minecraft4k
                                     || colliderBlockX >= WORLD_SIZE || colliderBlockY >= WORLD_HEIGHT || colliderBlockZ >= WORLD_SIZE
                                     || world[colliderBlockX + colliderBlockY * WORLD_HEIGHT + colliderBlockZ * 4096] > BLOCK_AIR) {
                                 
-                                if (axisIndex != 1) //not checking for vertical movement
-                                    break OUTER; //movement is invalid
+                                if (axisIndex != AXIS_Z) //not checking for vertical movement
+                                    continue OUTER; //movement is invalid
                                 
                                 // if we're falling, colliding, and we press space
                                 if (input[KeyEvent.VK_SPACE] == 1 && velocityY > 0.0F) {
