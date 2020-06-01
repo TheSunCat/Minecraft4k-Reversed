@@ -1,29 +1,32 @@
 package minecraft4k;
 
-import java.awt.Graphics;
-import java.awt.event.KeyAdapter;
+import java.awt.Point;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
-import java.awt.event.MouseListener;
-import java.awt.event.MouseMotionListener;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
-import java.util.Random;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
+
+import static minecraft4k.Minecraft4k.*;
 
 public class Minecraft4k
     extends JPanel
 {
     static int[] input = new int[32767];
     
+    //static java.awt.Point lastMousePosition = new java.awt.Point(0, 0);
+    static java.awt.Point mouseDelta = new java.awt.Point(0, 0);
+    
     final static int MOUSE_RIGHT = 0;
     final static int MOUSE_LEFT = 1;
-    final static int MOUSE_X = 2;
-    final static int MOUSE_Y = 3;
     
     final static int SCR_WIDTH = 214;
     final static int SCR_HEIGHT = 120;
+    
+    final static int WINDOW_WIDTH = 856;
+    final static int WINDOW_HEIGHT = 480;
     
     final static int WORLD_SIZE = 64;
     final static int WORLD_HEIGHT = 64;
@@ -49,13 +52,19 @@ public class Minecraft4k
         frame.addMouseListener(new MinecraftEventListener());
         frame.addMouseMotionListener(new MinecraftEventListener());
         frame.addKeyListener(new MinecraftEventListener());
-        frame.getContentPane().add(m4k);
-        frame.setSize(600, 400);
-        frame.setVisible(true);
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setResizable(false);
-        frame.setLocationRelativeTo(null);
         
+        frame.setSize(856, 480);
+        frame.setResizable(false);
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setLocationRelativeTo(null); // center the window
+        
+        // hide the cursor
+        frame.setCursor(frame.getToolkit().createCustomCursor(new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB), new java.awt.Point(), null));
+        
+        // add Minecraft!
+        frame.getContentPane().add(m4k);
+        
+        frame.setVisible(true);
         m4k.run();
     }
 
@@ -63,7 +72,7 @@ public class Minecraft4k
     
     public void run() {
         try {
-            Random rand = new Random(18295169L);
+            java.util.Random rand = new java.util.Random(18295169L);
             int[] screenBuffer = ((DataBufferInt) screen.getRaster().getDataBuffer()).getData();
             
             int[] world = new int[WORLD_SIZE * WORLD_HEIGHT * WORLD_SIZE];
@@ -190,25 +199,16 @@ public class Minecraft4k
                 float cosPitch = (float)Math.cos(cameraPitch);
                 
                 while (System.currentTimeMillis() - startTime > 10L) {
-                    if (input[MOUSE_X] != 0 && input[MOUSE_Y] != 0) {
-                        float xFromCenter = (input[MOUSE_X] - SCR_WIDTH * 1.5F) / (float) SCR_WIDTH * 2.0F;
-                        float yFromCenter = (input[MOUSE_Y] - SCR_HEIGHT * 1.5F) / (float) SCR_HEIGHT * 2.0F;
-                        float mouseDist = (float)Math.sqrt((xFromCenter * xFromCenter + yFromCenter * yFromCenter)) - 1.2F;
-                        
-                        if (mouseDist < 0.0F)
-                            mouseDist = 0.0F;
-                        
-                        if (mouseDist > 0.0F) {
-                            cameraYaw += xFromCenter * mouseDist / 400.0F;
-                            cameraPitch -= yFromCenter * mouseDist / 400.0F;
-                            
-                            if (cameraPitch < -1.57F)
-                                cameraPitch = -1.57F;
-                            
-                            if (cameraPitch > 1.57F)
-                                cameraPitch = 1.57F;
-                        }
-                    }
+                    // adjust camera
+                    cameraYaw += mouseDelta.x / 400.0F;
+                    cameraPitch -= mouseDelta.y / 400.0F;
+
+                    if (cameraPitch < -1.57F)
+                        cameraPitch = -1.57F;
+
+                    if (cameraPitch > 1.57F)
+                        cameraPitch = 1.57F;
+                    
                     
                     startTime += 10L;
                     float inputX = (input[KeyEvent.VK_D] - input[KeyEvent.VK_A]) * 0.02F;
@@ -391,7 +391,7 @@ public class Minecraft4k
                                     if (i24 != hoveredBlock || (i6 > 0 && i7 % 16 > 0 && i6 < 15 && i7 % 16 < 15))
                                         i26 = textureAtlas[i6 + i7 * 16 + i25 * 256 * 3];
                                     
-                                    if (rayTravelDist < playerReach && screenX == input[MOUSE_X] / 4 && screenY == input[MOUSE_Y] / 4) {
+                                    if (rayTravelDist < playerReach && screenX == (SCR_WIDTH * 2) / 4 && screenY == (SCR_HEIGHT * 2) / 4) {
                                         newHoveredBlock = i24;
                                         placeBlockOffset = 1;
                                         if (delta > 0.0F)
@@ -438,62 +438,103 @@ public class Minecraft4k
     }
     
     @Override
-    public void paint(Graphics g)
+    public void paint(java.awt.Graphics g)
     {
-        g.drawImage(screen, 0, 0, 856, 480, null);
+        g.drawImage(screen, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, null);
     }
 }
 
-class MinecraftEventListener extends KeyAdapter implements MouseListener, MouseMotionListener
+class MinecraftEventListener extends java.awt.event.KeyAdapter implements java.awt.event.MouseListener, java.awt.event.MouseMotionListener
 {
     @Override
     public void keyPressed(KeyEvent e) {
-        Minecraft4k.input[e.getKeyCode()] = 1;
+        input[e.getKeyCode()] = 1;
     }
 
     @Override
     public void keyReleased(KeyEvent e) {
-        Minecraft4k.input[e.getKeyCode()] = 0;
+        input[e.getKeyCode()] = 0;
     }
 
     @Override
     public void mousePressed(MouseEvent e) {
-        Minecraft4k.input[Minecraft4k.MOUSE_X] = e.getX();
-        Minecraft4k.input[Minecraft4k.MOUSE_Y] = e.getY();
+        mouseMoved(e);
         
         if (e.isMetaDown()) {
-            Minecraft4k.input[Minecraft4k.MOUSE_LEFT] = 1;
+            input[MOUSE_LEFT] = 1;
             return;
         }
-        Minecraft4k.input[Minecraft4k.MOUSE_RIGHT] = 1;
+        input[MOUSE_RIGHT] = 1;
     }
 
     @Override
     public void mouseReleased(MouseEvent e) {
         if (e.isMetaDown()) {
-            Minecraft4k.input[Minecraft4k.MOUSE_LEFT] = 0;
+            input[MOUSE_LEFT] = 0;
             return;
         }
-        Minecraft4k.input[Minecraft4k.MOUSE_RIGHT] = 0;
+        input[MOUSE_RIGHT] = 0;
     }
 
     @Override
     public void mouseExited(MouseEvent e) {
-        Minecraft4k.input[Minecraft4k.MOUSE_X] = 0;
-        Minecraft4k.input[Minecraft4k.MOUSE_Y] = 0;
+        mouseDelta = new Point();
     }
-
+    
+    // mouse movement stuff
+    boolean recentering = true;
+    Point mouseLocation = new Point();
+    
+    java.awt.Robot robot;
+    private void recenterMouse(JFrame frame) {
+        // create Robot
+        if(robot == null) {
+            try {
+                robot = new java.awt.Robot();
+            } catch (java.awt.AWTException ex) {
+                ex.printStackTrace();
+            }
+        }
+        
+        if (robot != null && frame.isShowing()) {
+            Point frameCenter = new Point();
+            frameCenter.x = frame.getWidth() / 2;
+            frameCenter.y = frame.getHeight() / 2;
+            SwingUtilities.convertPointToScreen(frameCenter, frame);
+            
+            recentering = true;
+            robot.mouseMove(frameCenter.x, frameCenter.y);
+        }
+    }
+    
     @Override
     public void mouseMoved(MouseEvent e) {
-        Minecraft4k.input[Minecraft4k.MOUSE_X] = e.getX();
-        Minecraft4k.input[Minecraft4k.MOUSE_Y] = e.getY();
+        // this event is from re-centering the mouse - ignore it
+        if (recentering)
+        {
+            SwingUtilities.invokeLater(() -> recentering = false);
+        } else {
+            mouseDelta.x = e.getX() - mouseLocation.x;
+            mouseDelta.y = e.getY() - mouseLocation.y;
+            
+            if(mouseDelta.distanceSq(new Point()) <= 2) // looks like Robot doesn't exactly recenter.. we can get drift
+                mouseDelta = new Point();
+            
+            // recenter the mouse
+            recenterMouse((JFrame) e.getSource());
+        }
+        
+        mouseLocation.x = e.getX();
+        mouseLocation.y = e.getY();
+    }
+    
+    @Override
+    public void mouseEntered(MouseEvent e) {
+        recenterMouse((JFrame) e.getSource());
     }
 
     @Override
     public void mouseClicked(MouseEvent e) {}
-
-    @Override
-    public void mouseEntered(MouseEvent e) {}
 
     @Override
     public void mouseDragged(MouseEvent e) {}
