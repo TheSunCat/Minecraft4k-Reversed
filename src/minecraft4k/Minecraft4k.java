@@ -95,8 +95,8 @@ public class Minecraft4k
             for (int blockType = 1; blockType < 16; blockType++) {
                 int gsd_tempA = 255 - rand.nextInt(96);
 
-                for (int y = 0; y < 48; y++) {
-                    for (int x = 0; x < 16; x++) {
+                for (int y = 0; y < TEXTURE_SIZE * 3; y++) {
+                    for (int x = 0; x < TEXTURE_SIZE; x++) {
                         // gets executed per pixel/texel
                         
                         if (blockType != BLOCK_STONE || rand.nextInt(3) == 0) // if the block type is stone, update the noise value less often to get a streched out look
@@ -125,7 +125,7 @@ public class Minecraft4k
                                     // uses that to make the gray scale detail darker if the current pixel is part of an annual ring
                                     // and adds some noice as a finishig touch
                                     int gsd_final = x - 7;
-                                    int gsd_tempB = (y & 0xF) - 7;
+                                    int gsd_tempB = (y % TEXTURE_RES) - 7;
 
                                     if (gsd_final < 0)
                                         gsd_final = 1 - gsd_final;
@@ -374,12 +374,12 @@ public class Minecraft4k
                                 int blockHitID = world[blockHitIndex];
                                 
                                 if (blockHitID != BLOCK_AIR) {
-                                    int texFetchX = (int)((rayX + rayZ) * TEXTURE_RES) & 0xF;
-                                    int texFetchY = ((int)(rayY * TEXTURE_RES) & 0xF) + TEXTURE_RES;
+                                    int texFetchX = (int)((rayX + rayZ) * TEXTURE_RES) % TEXTURE_RES;
+                                    int texFetchY = ((int)(rayY * TEXTURE_RES) % TEXTURE_RES) + TEXTURE_RES;
                                     
                                     if (axis == AXIS_Y) {
-                                        texFetchX = (int)(rayX * TEXTURE_RES) & 0xF;
-                                        texFetchY = (int)(rayZ * TEXTURE_RES) & 0xF;
+                                        texFetchX = (int)(rayX * TEXTURE_RES) % TEXTURE_RES;
+                                        texFetchY = (int)(rayZ * TEXTURE_RES) % TEXTURE_RES;
                                         
                                         // "lighting"
                                         if (rayDeltaY < 0.0F)
