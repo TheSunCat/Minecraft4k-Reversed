@@ -30,7 +30,7 @@ public class Minecraft4k
     final static int TEXTURE_RES = 16;
     
     final static int WORLD_SIZE = 64;
-    final static int WORLD_HEIGHT = 64;
+    final static int WORLD_HEIGHT = WORLD_SIZE;
     
     final static int AXIS_X = 0;
     final static int AXIS_Y = 1;
@@ -79,14 +79,19 @@ public class Minecraft4k
             int[] world = new int[WORLD_SIZE * WORLD_HEIGHT * WORLD_SIZE];
             
             // fill world with random blocks
-            for (int i = 0; i < world.length; i++) {
-                int block;
-                if(i / 64 % 64 > 32 + rand.nextInt(8))
-                    block = (rand.nextInt(8) + 1);
-                else
-                    block = 0;
-                
-                world[i] = block;
+            for (int x = 0; x < WORLD_SIZE; x++) {
+                for(int y = 0; y < WORLD_HEIGHT; y++) {
+                    for(int z = 0; z < WORLD_SIZE; z++) {
+                    
+                        int block;
+                        if(y > 32 + rand.nextInt(8))
+                            block = (rand.nextInt(8) + 1);
+                        else
+                            block = 0;
+                        
+                        world[x * WORLD_SIZE * WORLD_SIZE + y * WORLD_HEIGHT + z] = block;
+                    }
+                }
             }
             
             int[] textureAtlas = new int[16 * 3 * TEXTURE_SIZE * TEXTURE_SIZE];
@@ -114,9 +119,11 @@ public class Minecraft4k
                                 else if (y < (x * x * 3 + x * 81 >> 2 & 0x3) + 19) // grass edge shadow
                                     gsd_tempA = gsd_tempA * 2 / 3;
                                 break;
-                            case BLOCK_WOOD:
+                            case BLOCK_WOOD: // FIXME: wood bottom no longer darker help
                                 tint = 0x675231; // brown (bark)
-                                if (x > 0 && x < 15 && ((y > 0 && y < 15) || (y > 32 && y < 47))) { // wood inside area
+                                if(!(y >= TEXTURE_SIZE && y < TEXTURE_SIZE * 2) && // avoid this block when we are on second row
+                                        x > 0 && x < TEXTURE_SIZE - 1 &&
+                                        ((y > 0 && y < TEXTURE_SIZE - 1) || (y > TEXTURE_SIZE * 2 && y < TEXTURE_SIZE * 3 - 1))) { // wood side area
                                     tint = 0xBC9862; // light brown
 
                                     // the following code repurposes 2 gsd variables making it a bit hard to read
@@ -177,7 +184,7 @@ public class Minecraft4k
             long startTime = System.currentTimeMillis();
             
             float playerX = 96.5F;
-            float playerY = 65.0F; // as y -> inf, player -> down
+            float playerY = WORLD_HEIGHT + 1; // as y -> inf, player -> down
             float playerZ = 96.5F;
             
             float velocityX = 0.0F;
