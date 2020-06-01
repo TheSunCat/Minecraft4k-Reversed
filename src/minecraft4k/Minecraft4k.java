@@ -13,7 +13,7 @@ import static minecraft4k.Minecraft4k.*;
 public class Minecraft4k
     extends JPanel
 {
-    static int[] input = new int[32767];
+    static boolean[] input = new boolean[32767];
     
     static Point mouseDelta = new Point();
     
@@ -191,7 +191,7 @@ public class Minecraft4k
             float cameraPitch = 0.0F;
             
             while (true) {
-                if(input[KeyEvent.VK_Q] == 1)
+                if(input[KeyEvent.VK_Q] == true)
                 {
                     System.out.println("DEBUG::BREAK");
                 }
@@ -214,8 +214,8 @@ public class Minecraft4k
                     
                     
                     startTime += 10L;
-                    float inputX = (input[KeyEvent.VK_D] - input[KeyEvent.VK_A]) * 0.02F;
-                    float inputZ = (input[KeyEvent.VK_W] - input[KeyEvent.VK_S]) * 0.02F;
+                    float inputX = (integer(input[KeyEvent.VK_D]) - integer(input[KeyEvent.VK_A])) * 0.02F;
+                    float inputZ = (integer(input[KeyEvent.VK_W]) - integer(input[KeyEvent.VK_S])) * 0.02F;
                     velocityX *= 0.5F;
                     velocityY *= 0.99F;
                     velocityZ *= 0.5F;
@@ -246,8 +246,8 @@ public class Minecraft4k
                                     continue OUTER; //movement is invalid
                                 
                                 // if we're falling, colliding, and we press space
-                                if (input[KeyEvent.VK_SPACE] == 1 && velocityY > 0.0F) {
-                                    input[KeyEvent.VK_SPACE] = 0;
+                                if (input[KeyEvent.VK_SPACE] == true && velocityY > 0.0F) {
+                                    input[KeyEvent.VK_SPACE] = false;
                                     velocityY = -0.1F; // jump
                                     break OUTER;
                                 }
@@ -265,15 +265,15 @@ public class Minecraft4k
                 }
                 
                 // break block
-                if (input[MOUSE_LEFT] == 1 && hoveredBlockIndex > BLOCK_AIR) {
+                if (input[MOUSE_LEFT] == true && hoveredBlockIndex > 0) {
                     world[hoveredBlockIndex] = BLOCK_AIR;
-                    input[MOUSE_LEFT] = 0;
+                    input[MOUSE_LEFT] = false;
                 }
                 
                 // place block
-                if (input[MOUSE_RIGHT] > 0 && hoveredBlockIndex > BLOCK_AIR) {
+                if (input[MOUSE_RIGHT] == true && hoveredBlockIndex > 0) {
                     world[hoveredBlockIndex + placeBlockOffset] = BLOCK_GRASS;
-                    input[MOUSE_RIGHT] = 0;
+                    input[MOUSE_RIGHT] = false;
                 }
                 
                 for (int i8 = 0; i8 < 12; i8++) {
@@ -283,7 +283,7 @@ public class Minecraft4k
                     
                     // check if hovered block is within world boundaries
                     if (magicX >= 0 && magicY >= 0 && magicZ >= 0 && magicX < WORLD_SIZE && magicY < WORLD_HEIGHT && magicZ < WORLD_SIZE)
-                        world[magicX + magicY * WORLD_HEIGHT + magicZ * 4096] = BLOCK_AIR;
+                        world[magicX + magicY * WORLD_HEIGHT + magicZ * (WORLD_SIZE * WORLD_SIZE)] = BLOCK_AIR;
                 }
                 
                 // render the screen
@@ -442,18 +442,24 @@ public class Minecraft4k
     {
         g.drawImage(screen, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, null);
     }
+    
+    // ew java
+    private int integer(boolean b)
+    {
+        return b ? 1 : 0;
+    }
 }
 
 class MinecraftEventListener extends java.awt.event.KeyAdapter implements java.awt.event.MouseListener, java.awt.event.MouseMotionListener
 {
     @Override
     public void keyPressed(KeyEvent e) {
-        input[e.getKeyCode()] = 1;
+        input[e.getKeyCode()] = true;
     }
 
     @Override
     public void keyReleased(KeyEvent e) {
-        input[e.getKeyCode()] = 0;
+        input[e.getKeyCode()] = false;
     }
 
     @Override
@@ -461,19 +467,19 @@ class MinecraftEventListener extends java.awt.event.KeyAdapter implements java.a
         mouseMoved(e);
         
         if (e.isMetaDown()) {
-            input[MOUSE_LEFT] = 1;
+            input[MOUSE_LEFT] = true;
             return;
         }
-        input[MOUSE_RIGHT] = 1;
+        input[MOUSE_RIGHT] = false;
     }
 
     @Override
     public void mouseReleased(MouseEvent e) {
         if (e.isMetaDown()) {
-            input[MOUSE_LEFT] = 0;
+            input[MOUSE_LEFT] = true;
             return;
         }
-        input[MOUSE_RIGHT] = 0;
+        input[MOUSE_RIGHT] = false;
     }
     
     // mouse movement stuff
