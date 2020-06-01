@@ -5,6 +5,8 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 
@@ -16,6 +18,7 @@ public class Minecraft4k
     static boolean[] input = new boolean[32767];
     
     static Point mouseDelta = new Point();
+    static long lastMouseMove = System.currentTimeMillis();
     
     final static int MOUSE_RIGHT = 0;
     final static int MOUSE_LEFT = 1;
@@ -362,11 +365,11 @@ public class Minecraft4k
                             }
                             
                             while (rayTravelDist < furthestHit) {
-                                int blockHitX = (int) rayX - 64;
-                                int blockHitY = (int) rayY - 64;
-                                int blockHitZ = (int) rayZ - 64;
+                                int blockHitX = (int) rayX - WORLD_SIZE;
+                                int blockHitY = (int) rayY - WORLD_HEIGHT;
+                                int blockHitZ = (int) rayZ - WORLD_SIZE;
                                 
-                                if (blockHitX < 0 || blockHitY < 0 || blockHitZ < 0 || blockHitX >= 64 || blockHitY >= 64 || blockHitZ >= 64)
+                                if (blockHitX < 0 || blockHitY < 0 || blockHitZ < 0 || blockHitX >= WORLD_SIZE || blockHitY >= WORLD_SIZE || blockHitZ >= WORLD_SIZE)
                                     break;
                                 
                                 int blockHitIndex = blockHitX + blockHitY * WORLD_HEIGHT + blockHitZ * (WORLD_SIZE * WORLD_SIZE);
@@ -428,6 +431,10 @@ public class Minecraft4k
                 }
                 
                 hoveredBlockIndex = (int) newHoveredBlock;
+                
+                // reset mouse delta so if we stop moving the mouse it doesn't drift
+                if(System.currentTimeMillis() - lastMouseMove > 50)
+                    mouseDelta = new Point();
                 
                 Thread.sleep(2L);
                 repaint();
@@ -513,16 +520,15 @@ class MinecraftEventListener extends java.awt.event.KeyAdapter implements java.a
         // this event is from re-centering the mouse - ignore it
         if (recentering)
         {
-            javax.swing.SwingUtilities.invokeLater(() -> recentering = false);
+            javax.swing.SwingUtilities.invokeLater(()->recentering = false);
         } else {
             mouseDelta.x = e.getX() - mouseLocation.x;
             mouseDelta.y = e.getY() - mouseLocation.y;
             
-            if(mouseDelta.distanceSq(new Point()) <= 3) // looks like Robot doesn't exactly recenter.. we can get infinite drift if we don't do this
-                mouseDelta = new Point();
-            
             // recenter the mouse
             recenterMouse((JFrame) e.getSource());
+            
+            lastMouseMove = System.currentTimeMillis();
         }
         
         mouseLocation.x = e.getX();
