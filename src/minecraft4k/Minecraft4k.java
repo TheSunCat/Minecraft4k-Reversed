@@ -7,7 +7,6 @@ import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
-import javax.swing.SwingUtilities;
 
 import static minecraft4k.Minecraft4k.*;
 
@@ -16,8 +15,7 @@ public class Minecraft4k
 {
     static int[] input = new int[32767];
     
-    //static java.awt.Point lastMousePosition = new java.awt.Point(0, 0);
-    static java.awt.Point mouseDelta = new java.awt.Point(0, 0);
+    static Point mouseDelta = new Point();
     
     final static int MOUSE_RIGHT = 0;
     final static int MOUSE_LEFT = 1;
@@ -27,6 +25,8 @@ public class Minecraft4k
     
     final static int WINDOW_WIDTH = 856;
     final static int WINDOW_HEIGHT = 480;
+    
+    final static int TEXTURE_RES = 16;
     
     final static int WORLD_SIZE = 64;
     final static int WORLD_HEIGHT = 64;
@@ -97,12 +97,11 @@ public class Minecraft4k
                 for (int y = 0; y < 48; y++) {
                     for (int x = 0; x < 16; x++) {
                         // gets executed per pixel/texel
-
-                        int tint = 0x966C4A; // brown (dirt)
                         
                         if (blockType != BLOCK_STONE || rand.nextInt(3) == 0) // if the block type is stone, update the noise value less often to get a streched out look
                             gsd_tempA = 255 - rand.nextInt(96);
                         
+                        int tint = 0x966C4A; // brown (dirt)
                         switch(blockType)
                         {
                             case BLOCK_STONE:
@@ -177,13 +176,17 @@ public class Minecraft4k
             long startTime = System.currentTimeMillis();
             
             float playerX = 96.5F;
-            float playerY = 65.0F; // higher val means lower
+            float playerY = 65.0F; // as y -> inf, player -> down
             float playerZ = 96.5F;
+            
             float velocityX = 0.0F;
             float velocityY = 0.0F;
             float velocityZ = 0.0F;
-            int hoveredBlock = -1; // index in world array
-            int placeBlockOffset = 0; // idk, changes depending on hovered block sort of
+            
+            
+            int hoveredBlockIndex = -1; // index in world array
+            int placeBlockOffset = 0; // offset to hoveredBlockIndex to find where a block will be placed
+            
             float cameraYaw = 0.0F;
             float cameraPitch = 0.0F;
             
@@ -237,7 +240,7 @@ public class Minecraft4k
                             // check collision with world bounds and world blocks
                             if (colliderBlockX < 0 || colliderBlockY < 0 || colliderBlockZ < 0
                                     || colliderBlockX >= WORLD_SIZE || colliderBlockY >= WORLD_HEIGHT || colliderBlockZ >= WORLD_SIZE
-                                    || world[colliderBlockX + colliderBlockY * WORLD_HEIGHT + colliderBlockZ * 4096] > BLOCK_AIR) {
+                                    || world[colliderBlockX + colliderBlockY * WORLD_HEIGHT + colliderBlockZ * (WORLD_SIZE * WORLD_SIZE)] > BLOCK_AIR) {
                                 
                                 if (axisIndex != AXIS_Z) //not checking for vertical movement
                                     continue OUTER; //movement is invalid
@@ -261,18 +264,15 @@ public class Minecraft4k
                     }
                 }
                 
-                int i6 = 0;
-                int i7 = 0;
-                
                 // break block
-                if (input[MOUSE_LEFT] == 1 && hoveredBlock > BLOCK_AIR) {
-                    world[hoveredBlock] = BLOCK_AIR;
+                if (input[MOUSE_LEFT] == 1 && hoveredBlockIndex > BLOCK_AIR) {
+                    world[hoveredBlockIndex] = BLOCK_AIR;
                     input[MOUSE_LEFT] = 0;
                 }
                 
                 // place block
-                if (input[MOUSE_RIGHT] > 0 && hoveredBlock > BLOCK_AIR) {
-                    world[hoveredBlock + placeBlockOffset] = BLOCK_GRASS;
+                if (input[MOUSE_RIGHT] > 0 && hoveredBlockIndex > BLOCK_AIR) {
+                    world[hoveredBlockIndex + placeBlockOffset] = BLOCK_GRASS;
                     input[MOUSE_RIGHT] = 0;
                 }
                 
@@ -300,9 +300,9 @@ public class Minecraft4k
                         float rayDirY = yDistSmall * cosPitch - sinPitch;
                         float rayDirZ = temp * cosYaw - xDistSmall * sinyaw;
                         
-                        int i16 = 0;
-                        int fogIntensity = 0x00;
-                        double renderDistSorta = 20.0D;
+                        int pixelColor = 0;
+                        int fogMultipliter = 0x00;
+                        double furthestHit = 20.0D;
                         float playerReach = 5.0F;
                         
                         for (int axis = 0; axis < 3; axis++) {
@@ -321,12 +321,9 @@ public class Minecraft4k
                                     break;
                             }
                             
-                            float f28 = 1.0f / Math.abs(delta);
-                            
-                            
-                            float rayDeltaX = rayDirX * f28;
-                            float rayDeltaY = rayDirY * f28;
-                            float rayDeltaZ = rayDirZ * f28;
+                            float rayDeltaX = rayDirX / Math.abs(delta);
+                            float rayDeltaY = rayDirY / Math.abs(delta);
+                            float rayDeltaZ = rayDirZ / Math.abs(delta);
                             
                             
                             float floatComponent;
@@ -347,7 +344,7 @@ public class Minecraft4k
                             if (delta > 0)
                                 floatComponent = 1.0f - floatComponent;
                             
-                            float rayTravelDist = f28 * floatComponent;
+                            float rayTravelDist = floatComponent / Math.abs(delta);
                             
                             float rayX = playerX + rayDeltaX * floatComponent;
                             float rayY = playerY + rayDeltaY * floatComponent;
@@ -364,35 +361,40 @@ public class Minecraft4k
                                     rayZ--;
                             }
                             
-                            while (rayTravelDist < renderDistSorta) {
-                                int i21 = (int) rayX - 64;
-                                int i22 = (int) rayY - 64;
-                                int i23 = (int) rayZ - 64;
+                            while (rayTravelDist < furthestHit) {
+                                int blockHitX = (int) rayX - 64;
+                                int blockHitY = (int) rayY - 64;
+                                int blockHitZ = (int) rayZ - 64;
                                 
-                                if (i21 < 0 || i22 < 0 || i23 < 0 || i21 >= 64 || i22 >= 64 || i23 >= 64)
+                                if (blockHitX < 0 || blockHitY < 0 || blockHitZ < 0 || blockHitX >= 64 || blockHitY >= 64 || blockHitZ >= 64)
                                     break;
                                 
-                                int i24 = i21 + i22 * 64 + i23 * 4096;
-                                int i25 = world[i24];
+                                int blockHitIndex = blockHitX + blockHitY * WORLD_HEIGHT + blockHitZ * (WORLD_SIZE * WORLD_SIZE);
+                                int blockHitID = world[blockHitIndex];
                                 
-                                if (i25 > 0) {
-                                    i6 = (int)((rayX + rayZ) * 16.0F) & 0xF;
-                                    i7 = ((int)(rayY * 16.0F) & 0xF) + 16;
+                                if (blockHitID != BLOCK_AIR) {
+                                    int texFetchX = (int)((rayX + rayZ) * TEXTURE_RES) & 0xF;
+                                    int texFetchY = ((int)(rayY * TEXTURE_RES) & 0xF) + TEXTURE_RES;
                                     
                                     if (axis == AXIS_Y) {
-                                        i6 = (int)(rayX * 16.0F) & 0xF;
-                                        i7 = (int)(rayZ * 16.0F) & 0xF;
+                                        texFetchX = (int)(rayX * TEXTURE_RES) & 0xF;
+                                        texFetchY = (int)(rayZ * TEXTURE_RES) & 0xF;
                                         
+                                        // "lighting"
                                         if (rayDeltaY < 0.0F)
-                                            i7 += 32;
+                                            texFetchY += TEXTURE_RES * 2;
                                     }
                                     
-                                    int i26 = 0xFFFFFF; // white
-                                    if (i24 != hoveredBlock || (i6 > 0 && i7 % 16 > 0 && i6 < 15 && i7 % 16 < 15))
-                                        i26 = textureAtlas[i6 + i7 * 16 + i25 * 256 * 3];
+                                    int textureColor;
+                                    if(blockHitIndex == hoveredBlockIndex &&
+                                            (  (texFetchX == 0               || texFetchY % TEXTURE_RES == 0)
+                                            || (texFetchX == TEXTURE_RES - 1 || texFetchY % TEXTURE_RES == TEXTURE_RES - 1)))
+                                        textureColor = 0xFFFFFF; // add white outline to hovered block
+                                    else
+                                        textureColor = textureAtlas[texFetchX + texFetchY * TEXTURE_RES + blockHitID * (TEXTURE_RES * TEXTURE_RES) * 3];
                                     
                                     if (rayTravelDist < playerReach && screenX == (SCR_WIDTH * 2) / 4 && screenY == (SCR_HEIGHT * 2) / 4) {
-                                        newHoveredBlock = i24;
+                                        newHoveredBlock = blockHitIndex;
                                         placeBlockOffset = 1;
                                         if (delta > 0.0F)
                                             placeBlockOffset = -1;
@@ -401,38 +403,36 @@ public class Minecraft4k
                                         playerReach = rayTravelDist;
                                     }
                                     
-                                    if (i26 > 0) {
-                                        i16 = i26;
-                                        fogIntensity = 0xFF - (int)(rayTravelDist / 20.0F * 0xFF);
-                                        fogIntensity = fogIntensity * (0xFF - (axis + 2) % 3 * 50) / 0xFF;
-                                        renderDistSorta = rayTravelDist;
+                                    if (textureColor > 0) {
+                                        pixelColor = textureColor;
+                                        fogMultipliter = 0xFF - (int)(rayTravelDist / 20.0F * 0xFF);
+                                        fogMultipliter = fogMultipliter * (0xFF - (axis + 2) % 3 * 50) / 0xFF;
+                                        furthestHit = rayTravelDist;
                                     }
                                 }
                                 
-                                // xyz?
                                 rayX += rayDeltaX;
                                 rayY += rayDeltaY;
                                 rayZ += rayDeltaZ;
                                 
-                                rayTravelDist += f28;
+                                rayTravelDist += 1.0f / Math.abs(delta);
                             }
                         }
                         
-                        int pixelR = (i16 >> 16 & 0xFF) * fogIntensity / 0xFF;
-                        int pixelG = (i16 >> 8  & 0xFF) * fogIntensity / 0xFF;
-                        int pixelB = (i16       & 0xFF) * fogIntensity / 0xFF;
+                        int pixelR = (pixelColor >> 16 & 0xFF) * fogMultipliter / 0xFF;
+                        int pixelG = (pixelColor >> 8  & 0xFF) * fogMultipliter / 0xFF;
+                        int pixelB = (pixelColor       & 0xFF) * fogMultipliter / 0xFF;
                         
                         screenBuffer[screenX + screenY * SCR_WIDTH] = pixelR << 16 | pixelG << 8 | pixelB;
                     }
                 }
                 
-                hoveredBlock = (int) newHoveredBlock;
+                hoveredBlockIndex = (int) newHoveredBlock;
                 
                 Thread.sleep(2L);
                 repaint();
             }
-        
-        }catch (Exception localException) {
+        } catch (Exception localException) {
             localException.printStackTrace();
         }
     }
@@ -475,11 +475,6 @@ class MinecraftEventListener extends java.awt.event.KeyAdapter implements java.a
         }
         input[MOUSE_RIGHT] = 0;
     }
-
-    @Override
-    public void mouseExited(MouseEvent e) {
-        mouseDelta = new Point();
-    }
     
     // mouse movement stuff
     boolean recentering = true;
@@ -500,7 +495,7 @@ class MinecraftEventListener extends java.awt.event.KeyAdapter implements java.a
             Point frameCenter = new Point();
             frameCenter.x = frame.getWidth() / 2;
             frameCenter.y = frame.getHeight() / 2;
-            SwingUtilities.convertPointToScreen(frameCenter, frame);
+            javax.swing.SwingUtilities.convertPointToScreen(frameCenter, frame);
             
             recentering = true;
             robot.mouseMove(frameCenter.x, frameCenter.y);
@@ -512,12 +507,12 @@ class MinecraftEventListener extends java.awt.event.KeyAdapter implements java.a
         // this event is from re-centering the mouse - ignore it
         if (recentering)
         {
-            SwingUtilities.invokeLater(() -> recentering = false);
+            javax.swing.SwingUtilities.invokeLater(() -> recentering = false);
         } else {
             mouseDelta.x = e.getX() - mouseLocation.x;
             mouseDelta.y = e.getY() - mouseLocation.y;
             
-            if(mouseDelta.distanceSq(new Point()) <= 2) // looks like Robot doesn't exactly recenter.. we can get drift
+            if(mouseDelta.distanceSq(new Point()) <= 3) // looks like Robot doesn't exactly recenter.. we can get infinite drift if we don't do this
                 mouseDelta = new Point();
             
             // recenter the mouse
@@ -531,6 +526,11 @@ class MinecraftEventListener extends java.awt.event.KeyAdapter implements java.a
     @Override
     public void mouseEntered(MouseEvent e) {
         recenterMouse((JFrame) e.getSource());
+    }
+    
+    @Override
+    public void mouseExited(MouseEvent e) {
+        mouseDelta = new Point();
     }
 
     @Override
