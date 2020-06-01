@@ -5,8 +5,6 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 
@@ -477,13 +475,13 @@ class MinecraftEventListener extends java.awt.event.KeyAdapter implements java.a
             input[MOUSE_LEFT] = true;
             return;
         }
-        input[MOUSE_RIGHT] = false;
+        input[MOUSE_RIGHT] = true;
     }
 
     @Override
     public void mouseReleased(MouseEvent e) {
         if (e.isMetaDown()) {
-            input[MOUSE_LEFT] = true;
+            input[MOUSE_LEFT] = false;
             return;
         }
         input[MOUSE_RIGHT] = false;
