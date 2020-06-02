@@ -1,10 +1,13 @@
 package minecraft4k;
 
+import java.awt.Color;
+import java.awt.Font;
 import java.awt.Point;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
+import java.util.ArrayList;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 
@@ -23,6 +26,9 @@ public class Minecraft4k
     
     final static int SCR_RES_X = 214;
     final static int SCR_RES_Y = 120;
+    
+    final static int THREADS = 6;
+    static ArrayList<RenderThread> threadList = new ArrayList();
     
     final static int WINDOW_WIDTH = 856;
     final static int WINDOW_HEIGHT = 480;
@@ -48,6 +54,9 @@ public class Minecraft4k
     static BufferedImage crosshair;
     final static int CROSS_SIZE = 32;
     
+    static long deltaTime = 0;
+    static Font font = Font.getFont("Arial");
+    
     public static void main(String[] args)
     {
         JFrame frame = new JFrame("Minecraft4k");
@@ -64,17 +73,29 @@ public class Minecraft4k
                         && (Math.abs(x - CROSS_SIZE / 2) + 2) + (Math.abs(y - CROSS_SIZE / 2) + 2) > CROSS_SIZE * 0.296875f)
                 {
                     crosshair.setRGB(x, y, 0xFFFFFFFF);
-                } else {
-                    //crosshair.setRGB(x, y, 0x00);
                 }
             }
+        }
+        
+        int start = 0;
+        for(int fragmentID = 0; fragmentID < THREADS; fragmentID++)
+        {
+            int end = start + screenBuffer.length / THREADS;
+            
+            RenderThread t  = new RenderThread(start, end);
+            
+            threadList.add(t);
+            
+            new Thread(t).start();
+            
+            start = end;
         }
         
         frame.addMouseListener(new MinecraftEventListener());
         frame.addMouseMotionListener(new MinecraftEventListener());
         frame.addKeyListener(new MinecraftEventListener());
         
-        frame.setSize(856, 480);
+        frame.setSize(WINDOW_WIDTH, WINDOW_HEIGHT);
         frame.setResizable(false);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLocationRelativeTo(null); // center the window
@@ -89,14 +110,35 @@ public class Minecraft4k
         m4k.run();
     }
 
-    BufferedImage screen = new BufferedImage(SCR_RES_X, SCR_RES_Y, 1);
+    final static BufferedImage SCREEN = new BufferedImage(SCR_RES_X, SCR_RES_Y, 1);
+    
+    static float playerX = 96.5F;
+    static float playerY = WORLD_HEIGHT + 1; // as y -> inf, player -> down
+    static float playerZ = 96.5F;
+
+    static float velocityX = 0.0F;
+    static float velocityY = 0.0F;
+    static float velocityZ = 0.0F;
+
+
+    volatile static int hoveredBlockIndex = -1; // index in world array
+    volatile static int placeBlockOffset = 0; // offset to hoveredBlockIndex to find where a block will be placed
+
+    static float cameraYaw = 0.0F;
+    static float cameraPitch = 0.0F;
+    
+    static float sinYaw, sinPitch;
+    static float cosYaw, cosPitch;
+
+    volatile static float newHoveredBlock = -1.0F;
+    
+    static int[] screenBuffer = ((DataBufferInt) SCREEN.getRaster().getDataBuffer()).getData();    
+    static int[] world = new int[WORLD_SIZE * WORLD_HEIGHT * WORLD_SIZE];
+    static int[] textureAtlas = new int[16 * 3 * TEXTURE_SIZE * TEXTURE_SIZE];
     
     public void run() {
         try {
             java.util.Random rand = new java.util.Random(18295169L);
-            int[] screenBuffer = ((DataBufferInt) screen.getRaster().getDataBuffer()).getData();
-            
-            int[] world = new int[WORLD_SIZE * WORLD_HEIGHT * WORLD_SIZE];
             
             // fill world with random blocks
             for (int x = 0; x < WORLD_SIZE; x++) {
@@ -114,7 +156,6 @@ public class Minecraft4k
                 }
             }
             
-            int[] textureAtlas = new int[16 * 3 * TEXTURE_SIZE * TEXTURE_SIZE];
             // procedually generates the 16x3 textureAtlas with a tileSize of 16
             // gsd = grayscale detail
             for (int blockType = 1; blockType < 16; blockType++) {
@@ -203,31 +244,19 @@ public class Minecraft4k
             
             long startTime = System.currentTimeMillis();
             
-            float playerX = 96.5F;
-            float playerY = WORLD_HEIGHT + 1; // as y -> inf, player -> down
-            float playerZ = 96.5F;
-            
-            float velocityX = 0.0F;
-            float velocityY = 0.0F;
-            float velocityZ = 0.0F;
-            
-            
-            int hoveredBlockIndex = -1; // index in world array
-            int placeBlockOffset = 0; // offset to hoveredBlockIndex to find where a block will be placed
-            
-            float cameraYaw = 0.0F;
-            float cameraPitch = 0.0F;
             
             while (true) {
+                long time = System.currentTimeMillis();
+                
                 if(input[KeyEvent.VK_Q] == true)
                 {
                     System.out.println("DEBUG::BREAK");
                 }
                 
-                float sinyaw = (float)Math.sin(cameraYaw);
-                float cosYaw = (float)Math.cos(cameraYaw);
-                float sinPitch = (float)Math.sin(cameraPitch);
-                float cosPitch = (float)Math.cos(cameraPitch);
+                sinYaw = (float)Math.sin(cameraYaw);
+                cosYaw = (float)Math.cos(cameraYaw);
+                sinPitch = (float)Math.sin(cameraPitch);
+                cosPitch = (float)Math.cos(cameraPitch);
                 
                 while (System.currentTimeMillis() - startTime > 10L) {
                     // adjust camera
@@ -247,8 +276,8 @@ public class Minecraft4k
                     velocityX *= 0.5F;
                     velocityY *= 0.99F;
                     velocityZ *= 0.5F;
-                    velocityX += sinyaw * inputZ + cosYaw * inputX;
-                    velocityZ += cosYaw * inputZ - sinyaw * inputX;
+                    velocityX += sinYaw * inputZ + cosYaw * inputX;
+                    velocityZ += cosYaw * inputZ - sinYaw * inputX;
                     velocityY += 0.003F;
                     
                     
@@ -314,154 +343,42 @@ public class Minecraft4k
                         world[magicX + magicY * WORLD_HEIGHT + magicZ * (WORLD_SIZE * WORLD_SIZE)] = BLOCK_AIR;
                 }
                 
-                // render the screen
-                float newHoveredBlock = -1.0F;
-                for (int screenX = 0; screenX < SCR_RES_X; screenX++) {
-                    float xDistSmall = (screenX - (SCR_RES_X / 2)) / 90.0F;
-                    
-                    for (int screenY = 0; screenY < SCR_RES_Y; screenY++) {
-                        float yDistSmall = (screenY - (SCR_RES_Y / 2)) / 90.0F;
-                        
-                        float temp = cosPitch + yDistSmall * sinPitch;
-                        
-                        float rayDirX = xDistSmall * cosYaw + temp * sinyaw;
-                        float rayDirY = yDistSmall * cosPitch - sinPitch;
-                        float rayDirZ = temp * cosYaw - xDistSmall * sinyaw;
-                        
-                        int pixelColor = 0;
-                        int fogMultipliter = 0x00;
-                        double furthestHit = 20.0D;
-                        float playerReach = 5.0F;
-                        
-                        for (int axis = 0; axis < 3; axis++) {
-                            float delta;
-                            switch(axis)
-                            {
-                                default:
-                                case AXIS_X:
-                                    delta = rayDirX;
-                                    break;
-                                case AXIS_Y:
-                                    delta = rayDirY;
-                                    break;
-                                case AXIS_Z:
-                                    delta = rayDirZ;
-                                    break;
-                            }
-                            
-                            float rayDeltaX = rayDirX / Math.abs(delta);
-                            float rayDeltaY = rayDirY / Math.abs(delta);
-                            float rayDeltaZ = rayDirZ / Math.abs(delta);
-                            
-                            
-                            float floatComponent;
-                            switch(axis)
-                            {
-                                default:
-                                case AXIS_X:
-                                    floatComponent = playerX % 1.0f;
-                                    break;
-                                case AXIS_Y:
-                                    floatComponent = playerY % 1.0f;
-                                    break;
-                                case AXIS_Z:
-                                    floatComponent = playerZ % 1.0f;
-                                    break;
-                            }
-                            
-                            if (delta > 0)
-                                floatComponent = 1.0f - floatComponent;
-                            
-                            float rayTravelDist = floatComponent / Math.abs(delta);
-                            
-                            float rayX = playerX + rayDeltaX * floatComponent;
-                            float rayY = playerY + rayDeltaY * floatComponent;
-                            float rayZ = playerZ + rayDeltaZ * floatComponent;
-                            
-                            if (delta < 0.0F) {
-                                if (axis == 0)
-                                    rayX--;
-                                
-                                if (axis == 1)
-                                    rayY--;
-                                
-                                if (axis == 2)
-                                    rayZ--;
-                            }
-                            
-                            while (rayTravelDist < furthestHit) {
-                                int blockHitX = (int) rayX - WORLD_SIZE;
-                                int blockHitY = (int) rayY - WORLD_HEIGHT;
-                                int blockHitZ = (int) rayZ - WORLD_SIZE;
-                                
-                                if (blockHitX < 0 || blockHitY < 0 || blockHitZ < 0 || blockHitX >= WORLD_SIZE || blockHitY >= WORLD_SIZE || blockHitZ >= WORLD_SIZE)
-                                    break;
-                                
-                                int blockHitIndex = blockHitX + blockHitY * WORLD_HEIGHT + blockHitZ * (WORLD_SIZE * WORLD_SIZE);
-                                int blockHitID = world[blockHitIndex];
-                                
-                                if (blockHitID != BLOCK_AIR) {
-                                    int texFetchX = (int)((rayX + rayZ) * TEXTURE_RES) % TEXTURE_RES;
-                                    int texFetchY = ((int)(rayY * TEXTURE_RES) % TEXTURE_RES) + TEXTURE_RES;
-                                    
-                                    if (axis == AXIS_Y) {
-                                        texFetchX = (int)(rayX * TEXTURE_RES) % TEXTURE_RES;
-                                        texFetchY = (int)(rayZ * TEXTURE_RES) % TEXTURE_RES;
-                                        
-                                        // "lighting"
-                                        if (rayDeltaY < 0.0F)
-                                            texFetchY += TEXTURE_RES * 2;
-                                    }
-                                    
-                                    int textureColor;
-                                    if(blockHitIndex == hoveredBlockIndex &&
-                                            (  (texFetchX == 0               || texFetchY % TEXTURE_RES == 0)
-                                            || (texFetchX == TEXTURE_RES - 1 || texFetchY % TEXTURE_RES == TEXTURE_RES - 1)))
-                                        textureColor = 0xFFFFFF; // add white outline to hovered block
-                                    else
-                                        textureColor = textureAtlas[texFetchX + texFetchY * TEXTURE_RES + blockHitID * (TEXTURE_RES * TEXTURE_RES) * 3];
-                                    
-                                    if (rayTravelDist < playerReach && screenX == (SCR_RES_X * 2) / 4 && screenY == (SCR_RES_Y * 2) / 4) {
-                                        newHoveredBlock = blockHitIndex;
-                                        placeBlockOffset = 1;
-                                        if (delta > 0.0F)
-                                            placeBlockOffset = -1;
-                                        
-                                        placeBlockOffset *= Math.pow(WORLD_SIZE, axis);
-                                        playerReach = rayTravelDist;
-                                    }
-                                    
-                                    if (textureColor > 0) {
-                                        pixelColor = textureColor;
-                                        fogMultipliter = 0xFF - (int)(rayTravelDist / 20.0F * 0xFF);
-                                        fogMultipliter = fogMultipliter * (0xFF - (axis + 2) % 3 * 50) / 0xFF;
-                                        furthestHit = rayTravelDist;
-                                    }
-                                }
-                                
-                                rayX += rayDeltaX;
-                                rayY += rayDeltaY;
-                                rayZ += rayDeltaZ;
-                                
-                                rayTravelDist += 1.0f / Math.abs(delta);
-                            }
+                // render the SCREEN
+                newHoveredBlock = -1.0F;
+                
+                for(RenderThread t : threadList)
+                    t.render = true;
+                
+                boolean done = false;
+                while(!done) {
+                    done = true;
+                    for(RenderThread t : threadList) {
+                        if(t.render) {
+                            done = false;
+                            break;
                         }
-                        
-                        int pixelR = (pixelColor >> 16 & 0xFF) * fogMultipliter / 0xFF;
-                        int pixelG = (pixelColor >> 8  & 0xFF) * fogMultipliter / 0xFF;
-                        int pixelB = (pixelColor       & 0xFF) * fogMultipliter / 0xFF;
-                        
-                        screenBuffer[screenX + screenY * SCR_RES_X] = pixelR << 16 | pixelG << 8 | pixelB;
                     }
+                    
+                    if(done)
+                        break;
                 }
                 
                 hoveredBlockIndex = (int) newHoveredBlock;
                 
-                // reset mouse delta so if we stop moving the mouse it doesn't drift
-//                if(System.currentTimeMillis() - lastMouseMove > 25)
-//                    mouseDelta = new Point();
+                deltaTime = System.currentTimeMillis() - time;
                 
-                Thread.sleep(2L);
+                if(deltaTime > 20)
+                    System.err.println(deltaTime);
+                
+                for(RenderThread t : threadList)
+                    System.arraycopy(t.buffer, 0, screenBuffer, t.start, t.buffer.length);
+                
+                // reset mouse delta so if we stop moving the mouse it doesn't drift
+                if(System.currentTimeMillis() - lastMouseMove > 25)
+                    mouseDelta = new Point();
+                
+                Thread.sleep(2);
+                
                 repaint();
             }
         } catch (Exception localException) {
@@ -472,9 +389,17 @@ public class Minecraft4k
     @Override
     public void paint(java.awt.Graphics g)
     {
-        g.drawImage(screen, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, null);
+        g.drawImage(SCREEN, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, null);
         
         g.drawImage(crosshair, WINDOW_WIDTH / 2 - CROSS_SIZE / 2, WINDOW_HEIGHT / 2 - CROSS_SIZE / 2, null);
+        
+        if(deltaTime > 16)
+            g.setColor(Color.red);
+        else
+            g.setColor(Color.white);
+        
+        g.setFont(font);
+        g.drawString("" + deltaTime, 0, 10);
     }
     
     // ew java
@@ -577,4 +502,174 @@ class MinecraftEventListener extends java.awt.event.KeyAdapter implements java.a
 
     @Override
     public void mouseDragged(MouseEvent e) {}
+}
+
+class RenderThread implements Runnable {
+    int start, end;
+    RenderThread(int _start, int _end)
+    {
+        start = _start;
+        end = _end;
+        
+        buffer = new int[end - start];
+    }
+    
+    int[] buffer;
+
+    @Override
+    public void run()
+    {
+        while(true) {
+            for(int screenIndex = 0; screenIndex < buffer.length; screenIndex++)
+            {
+                int screenX = (screenIndex + start) % SCR_RES_X;
+                int screenY = (screenIndex + start) / SCR_RES_X;
+
+                float xDistSmall = (screenX - (SCR_RES_X / 2)) / 90.0F;
+                float yDistSmall = (screenY - (SCR_RES_Y / 2)) / 90.0F;
+
+                float temp = cosPitch + yDistSmall * sinPitch;
+
+                float rayDirX = xDistSmall * cosYaw + temp * sinYaw;
+                float rayDirY = yDistSmall * cosPitch - sinPitch;
+                float rayDirZ = temp * cosYaw - xDistSmall * sinYaw;
+
+                int pixelColor = 0;
+                int fogMultipliter = 0x00;
+                double furthestHit = 20.0D;
+                float playerReach = 5.0F;
+
+                for (int axis = 0; axis < 3; axis++) {
+                    float delta;
+                    switch(axis)
+                    {
+                        default:
+                        case AXIS_X:
+                            delta = rayDirX;
+                            break;
+                        case AXIS_Y:
+                            delta = rayDirY;
+                            break;
+                        case AXIS_Z:
+                            delta = rayDirZ;
+                            break;
+                    }
+
+                    float rayDeltaX = rayDirX / Math.abs(delta);
+                    float rayDeltaY = rayDirY / Math.abs(delta);
+                    float rayDeltaZ = rayDirZ / Math.abs(delta);
+
+
+                    float floatComponent;
+                    switch(axis)
+                    {
+                        default:
+                        case AXIS_X:
+                            floatComponent = playerX % 1.0f;
+                            break;
+                        case AXIS_Y:
+                            floatComponent = playerY % 1.0f;
+                            break;
+                        case AXIS_Z:
+                            floatComponent = playerZ % 1.0f;
+                            break;
+                    }
+
+                    if (delta > 0)
+                        floatComponent = 1.0f - floatComponent;
+
+                    float rayTravelDist = floatComponent / Math.abs(delta);
+
+                    float rayX = playerX + rayDeltaX * floatComponent;
+                    float rayY = playerY + rayDeltaY * floatComponent;
+                    float rayZ = playerZ + rayDeltaZ * floatComponent;
+
+                    if (delta < 0.0F) {
+                        if (axis == 0)
+                            rayX--;
+
+                        if (axis == 1)
+                            rayY--;
+
+                        if (axis == 2)
+                            rayZ--;
+                    }
+
+                    while (rayTravelDist < furthestHit) {
+                        int blockHitX = (int) rayX - WORLD_SIZE;
+                        int blockHitY = (int) rayY - WORLD_HEIGHT;
+                        int blockHitZ = (int) rayZ - WORLD_SIZE;
+
+                        if (blockHitX < 0 || blockHitY < 0 || blockHitZ < 0 || blockHitX >= WORLD_SIZE || blockHitY >= WORLD_SIZE || blockHitZ >= WORLD_SIZE)
+                            break;
+
+                        int blockHitIndex = blockHitX + blockHitY * WORLD_HEIGHT + blockHitZ * (WORLD_SIZE * WORLD_SIZE);
+                        int blockHitID = world[blockHitIndex];
+
+                        if (blockHitID != BLOCK_AIR) {
+                            int texFetchX = (int)((rayX + rayZ) * TEXTURE_RES) % TEXTURE_RES;
+                            int texFetchY = ((int)(rayY * TEXTURE_RES) % TEXTURE_RES) + TEXTURE_RES;
+
+                            if (axis == AXIS_Y) {
+                                texFetchX = (int)(rayX * TEXTURE_RES) % TEXTURE_RES;
+                                texFetchY = (int)(rayZ * TEXTURE_RES) % TEXTURE_RES;
+
+                                // "lighting"
+                                if (rayDeltaY < 0.0F)
+                                    texFetchY += TEXTURE_RES * 2;
+                            }
+
+                            int textureColor;
+                            if(blockHitIndex == hoveredBlockIndex &&
+                                    (  (texFetchX == 0               || texFetchY % TEXTURE_RES == 0)
+                                    || (texFetchX == TEXTURE_RES - 1 || texFetchY % TEXTURE_RES == TEXTURE_RES - 1)))
+                                textureColor = 0xFFFFFF; // add white outline to hovered block
+                            else
+                                textureColor = textureAtlas[texFetchX + texFetchY * TEXTURE_RES + blockHitID * (TEXTURE_RES * TEXTURE_RES) * 3];
+
+                            if (rayTravelDist < playerReach && screenX == (SCR_RES_X * 2) / 4 && screenY == (SCR_RES_Y * 2) / 4) {
+                                newHoveredBlock = blockHitIndex;
+                                placeBlockOffset = 1;
+                                if (delta > 0.0F)
+                                    placeBlockOffset = -1;
+
+                                placeBlockOffset *= Math.pow(WORLD_SIZE, axis);
+                                playerReach = rayTravelDist;
+                            }
+
+                            if (textureColor > 0) {
+                                pixelColor = textureColor;
+                                fogMultipliter = 0xFF - (int)(rayTravelDist / 20.0F * 0xFF);
+                                fogMultipliter = fogMultipliter * (0xFF - (axis + 2) % 3 * 50) / 0xFF;
+                                furthestHit = rayTravelDist;
+                            }
+                        }
+
+                        rayX += rayDeltaX;
+                        rayY += rayDeltaY;
+                        rayZ += rayDeltaZ;
+
+                        rayTravelDist += 1.0f / Math.abs(delta);
+                    }
+                }
+
+                int pixelR = (pixelColor >> 16 & 0xFF) * fogMultipliter / 0xFF;
+                int pixelG = (pixelColor >> 8  & 0xFF) * fogMultipliter / 0xFF;
+                int pixelB = (pixelColor       & 0xFF) * fogMultipliter / 0xFF;
+
+                buffer[screenIndex] = pixelR << 16 | pixelG << 8 | pixelB;
+            }
+
+            render = false;
+            while(!render) {
+                try {
+                    Thread.sleep(8);
+                } catch (InterruptedException ex) {
+                    ex.printStackTrace();
+                }
+            } // stuck here until render = true
+        }
+    }
+    
+    volatile boolean render = true;
 }
