@@ -21,11 +21,15 @@ public class Minecraft4k
     static Point mouseDelta = new Point();
     static long lastMouseMove = System.currentTimeMillis();
     
+    volatile static boolean needsResUpdate = true;
+    
     final static int MOUSE_RIGHT = 0;
     final static int MOUSE_LEFT = 1;
     
-    final static int SCR_RES_X = 214;
-    final static int SCR_RES_Y = 120;
+    static int SCR_DETAIL = 1;
+    
+    static int SCR_RES_X = (int) (107 * Math.pow(2, SCR_DETAIL));
+    static int SCR_RES_Y = (int) (60 * Math.pow(2, SCR_DETAIL));
     
     final static int THREADS = 6;
     static ArrayList<RenderThread> threadList = new ArrayList();
@@ -77,19 +81,7 @@ public class Minecraft4k
             }
         }
         
-        int start = 0;
-        for(int fragmentID = 0; fragmentID < THREADS; fragmentID++)
-        {
-            int end = start + screenBuffer.length / THREADS;
-            
-            RenderThread t  = new RenderThread(start, end);
-            
-            threadList.add(t);
-            
-            new Thread(t).start();
-            
-            start = end;
-        }
+        updateScreenResolution();
         
         frame.addMouseListener(new MinecraftEventListener());
         frame.addMouseMotionListener(new MinecraftEventListener());
@@ -110,29 +102,30 @@ public class Minecraft4k
         m4k.run();
     }
 
-    final static BufferedImage SCREEN = new BufferedImage(SCR_RES_X, SCR_RES_Y, 1);
+    static BufferedImage SCREEN = new BufferedImage(SCR_RES_X, SCR_RES_Y, 1);
     
-    static float playerX = 96.5F;
+    static float playerX = 96.5f;
     static float playerY = WORLD_HEIGHT + 1; // as y -> inf, player -> down
-    static float playerZ = 96.5F;
+    static float playerZ = 96.5f;
 
-    static float velocityX = 0.0F;
-    static float velocityY = 0.0F;
-    static float velocityZ = 0.0F;
+    static float velocityX = 0.0f;
+    static float velocityY = 0.0f;
+    static float velocityZ = 0.0f;
 
 
     volatile static int hoveredBlockIndex = -1; // index in world array
     volatile static int placeBlockOffset = 0; // offset to hoveredBlockIndex to find where a block will be placed
 
-    static float cameraYaw = 0.0F;
-    static float cameraPitch = 0.0F;
+    static float cameraYaw = 0.0f;
+    static float cameraPitch = 0.0f;
+    static float FOV = 90.0f;
     
     static float sinYaw, sinPitch;
     static float cosYaw, cosPitch;
 
-    volatile static float newHoveredBlock = -1.0F;
+    volatile static float newHoveredBlock = -1.0f;
     
-    static int[] screenBuffer = ((DataBufferInt) SCREEN.getRaster().getDataBuffer()).getData();    
+    static int[] screenBuffer = ((DataBufferInt) SCREEN.getRaster().getDataBuffer()).getData();
     static int[] world = new int[WORLD_SIZE * WORLD_HEIGHT * WORLD_SIZE];
     static int[] textureAtlas = new int[16 * 3 * TEXTURE_SIZE * TEXTURE_SIZE];
     
@@ -247,6 +240,11 @@ public class Minecraft4k
             
             while (true) {
                 long time = System.currentTimeMillis();
+                
+                if(needsResUpdate) {
+                    needsResUpdate = false;
+                    updateScreenResolution();
+                }
                 
                 if(input[KeyEvent.VK_Q] == true)
                 {
@@ -402,8 +400,31 @@ public class Minecraft4k
         g.drawString("" + deltaTime, 0, 10);
     }
     
+    public static void updateScreenResolution()
+    {
+        SCR_RES_X = (int) (107 * Math.pow(2, SCR_DETAIL));
+        SCR_RES_Y = (int) (60  * Math.pow(2, SCR_DETAIL));
+        
+        SCREEN = new BufferedImage(SCR_RES_X, SCR_RES_Y, 1);
+        screenBuffer = ((DataBufferInt) SCREEN.getRaster().getDataBuffer()).getData();
+        
+        threadList.clear();
+        
+        int start = 0;
+        for(int fragmentID = 0; fragmentID < THREADS; fragmentID++)
+        {
+            int end = start + screenBuffer.length / THREADS;
+            
+            RenderThread t  = new RenderThread(start, end);
+            threadList.add(t);
+            new Thread(t).start();
+            
+            start = end;
+        }
+    }
+    
     // ew java
-    private int integer(boolean b)
+    private static int integer(boolean b)
     {
         return b ? 1 : 0;
     }
@@ -413,7 +434,18 @@ class MinecraftEventListener extends java.awt.event.KeyAdapter implements java.a
 {
     @Override
     public void keyPressed(KeyEvent e) {
-        input[e.getKeyCode()] = true;
+        if(e.getKeyCode() == KeyEvent.VK_COMMA) {
+            SCR_DETAIL++;
+            needsResUpdate = true;
+        } else if(e.getKeyCode() == KeyEvent.VK_PERIOD) {
+            SCR_DETAIL--;
+            
+            if(SCR_RES_Y <= 1)
+                SCR_DETAIL++;
+            
+            needsResUpdate = true;
+        } else
+            input[e.getKeyCode()] = true;
     }
 
     @Override
@@ -525,8 +557,8 @@ class RenderThread implements Runnable {
                 int screenX = (screenIndex + start) % SCR_RES_X;
                 int screenY = (screenIndex + start) / SCR_RES_X;
 
-                float xDistSmall = (screenX - (SCR_RES_X / 2)) / 90.0F;
-                float yDistSmall = (screenY - (SCR_RES_Y / 2)) / 90.0F;
+                float xDistSmall = ((screenX - (SCR_RES_X / 2)) / FOV) / (float) SCR_RES_X * 214.0f;
+                float yDistSmall = ((screenY - (SCR_RES_Y / 2)) / FOV) / (float) SCR_RES_Y * 120.0f;
 
                 float temp = cosPitch + yDistSmall * sinPitch;
 
