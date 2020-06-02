@@ -21,8 +21,8 @@ public class Minecraft4k
     final static int MOUSE_RIGHT = 0;
     final static int MOUSE_LEFT = 1;
     
-    final static int SCR_WIDTH = 214;
-    final static int SCR_HEIGHT = 120;
+    final static int SCR_RES_X = 214;
+    final static int SCR_RES_Y = 120;
     
     final static int WINDOW_WIDTH = 856;
     final static int WINDOW_HEIGHT = 480;
@@ -45,10 +45,30 @@ public class Minecraft4k
     
     final static int TEXTURE_SIZE = 16;
     
+    static BufferedImage crosshair;
+    final static int CROSS_SIZE = 32;
+    
     public static void main(String[] args)
     {
         JFrame frame = new JFrame("Minecraft4k");
         Minecraft4k m4k = new Minecraft4k();
+        
+        crosshair = new BufferedImage(CROSS_SIZE, CROSS_SIZE, BufferedImage.TYPE_INT_ARGB);
+        
+        for(int x = 0; x < CROSS_SIZE; x++)
+        {
+            for(int y = 0; y < CROSS_SIZE; y++)
+            {
+                if(((Math.abs(x - CROSS_SIZE / 2) + 2) * (Math.abs(y - CROSS_SIZE / 2) + 2) < Math.sqrt((CROSS_SIZE * CROSS_SIZE / 2)))
+                        && (Math.abs(x - CROSS_SIZE / 2) + 2) + (Math.abs(y - CROSS_SIZE / 2) + 2) < CROSS_SIZE * 0.4375f
+                        && (Math.abs(x - CROSS_SIZE / 2) + 2) + (Math.abs(y - CROSS_SIZE / 2) + 2) > CROSS_SIZE * 0.296875f)
+                {
+                    crosshair.setRGB(x, y, 0xFFFFFFFF);
+                } else {
+                    //crosshair.setRGB(x, y, 0x00);
+                }
+            }
+        }
         
         frame.addMouseListener(new MinecraftEventListener());
         frame.addMouseMotionListener(new MinecraftEventListener());
@@ -69,7 +89,7 @@ public class Minecraft4k
         m4k.run();
     }
 
-    BufferedImage screen = new BufferedImage(SCR_WIDTH, SCR_HEIGHT, 1);
+    BufferedImage screen = new BufferedImage(SCR_RES_X, SCR_RES_Y, 1);
     
     public void run() {
         try {
@@ -98,14 +118,14 @@ public class Minecraft4k
             // procedually generates the 16x3 textureAtlas with a tileSize of 16
             // gsd = grayscale detail
             for (int blockType = 1; blockType < 16; blockType++) {
-                int gsd_tempA = 255 - rand.nextInt(96);
+                int gsd_tempA = 0xFF - rand.nextInt(96);
 
                 for (int y = 0; y < TEXTURE_SIZE * 3; y++) {
                     for (int x = 0; x < TEXTURE_SIZE; x++) {
                         // gets executed per pixel/texel
                         
                         if (blockType != BLOCK_STONE || rand.nextInt(3) == 0) // if the block type is stone, update the noise value less often to get a streched out look
-                            gsd_tempA = 255 - rand.nextInt(96);
+                            gsd_tempA = 0xFF - rand.nextInt(96);
                         
                         int tint = 0x966C4A; // brown (dirt)
                         switch(blockType)
@@ -159,24 +179,24 @@ public class Minecraft4k
                         }
 
                         int gsd_final = gsd_tempA;
-                        if (y >= 32) // bottom side of the block
+                        if (y >= TEXTURE_SIZE * 2) // bottom side of the block
                             gsd_final /= 2; // has to be darker
 
                         if (blockType == BLOCK_LEAVES) {
                             tint = 0x50D937; // green
                             if (rand.nextInt(2) == 0) {
                                 tint = 0;
-                                gsd_final = 255;
+                                gsd_final = 0xFF;
                             }
                         }
                         
                         // multiply tint by the grayscale detail
-                        int col = (tint >> 16 & 0xFF) * gsd_final / 255 << 16 |
-                                  (tint >>  8 & 0xFF) * gsd_final / 255 << 8 | 
-                                  (tint       & 0xFF) * gsd_final / 255;
+                        int col = (tint >> 16 & 0xFF) * gsd_final / 0xFF << 16 |
+                                  (tint >>  8 & 0xFF) * gsd_final / 0xFF << 8 | 
+                                  (tint       & 0xFF) * gsd_final / 0xFF;
 
                         // write pixel to the texture atlas
-                        textureAtlas[x + y * 16 + blockType * 256 * 3] = col;
+                        textureAtlas[x + y * TEXTURE_SIZE + blockType * (TEXTURE_SIZE * TEXTURE_SIZE) * 3] = col;
                     }
                 }
             }
@@ -296,11 +316,11 @@ public class Minecraft4k
                 
                 // render the screen
                 float newHoveredBlock = -1.0F;
-                for (int screenX = 0; screenX < SCR_WIDTH; screenX++) {
-                    float xDistSmall = (screenX - (SCR_WIDTH / 2)) / 90.0F;
+                for (int screenX = 0; screenX < SCR_RES_X; screenX++) {
+                    float xDistSmall = (screenX - (SCR_RES_X / 2)) / 90.0F;
                     
-                    for (int screenY = 0; screenY < SCR_HEIGHT; screenY++) {
-                        float yDistSmall = (screenY - (SCR_HEIGHT / 2)) / 90.0F;
+                    for (int screenY = 0; screenY < SCR_RES_Y; screenY++) {
+                        float yDistSmall = (screenY - (SCR_RES_Y / 2)) / 90.0F;
                         
                         float temp = cosPitch + yDistSmall * sinPitch;
                         
@@ -401,7 +421,7 @@ public class Minecraft4k
                                     else
                                         textureColor = textureAtlas[texFetchX + texFetchY * TEXTURE_RES + blockHitID * (TEXTURE_RES * TEXTURE_RES) * 3];
                                     
-                                    if (rayTravelDist < playerReach && screenX == (SCR_WIDTH * 2) / 4 && screenY == (SCR_HEIGHT * 2) / 4) {
+                                    if (rayTravelDist < playerReach && screenX == (SCR_RES_X * 2) / 4 && screenY == (SCR_RES_Y * 2) / 4) {
                                         newHoveredBlock = blockHitIndex;
                                         placeBlockOffset = 1;
                                         if (delta > 0.0F)
@@ -431,15 +451,15 @@ public class Minecraft4k
                         int pixelG = (pixelColor >> 8  & 0xFF) * fogMultipliter / 0xFF;
                         int pixelB = (pixelColor       & 0xFF) * fogMultipliter / 0xFF;
                         
-                        screenBuffer[screenX + screenY * SCR_WIDTH] = pixelR << 16 | pixelG << 8 | pixelB;
+                        screenBuffer[screenX + screenY * SCR_RES_X] = pixelR << 16 | pixelG << 8 | pixelB;
                     }
                 }
                 
                 hoveredBlockIndex = (int) newHoveredBlock;
                 
                 // reset mouse delta so if we stop moving the mouse it doesn't drift
-                if(System.currentTimeMillis() - lastMouseMove > 50)
-                    mouseDelta = new Point();
+//                if(System.currentTimeMillis() - lastMouseMove > 25)
+//                    mouseDelta = new Point();
                 
                 Thread.sleep(2L);
                 repaint();
@@ -453,6 +473,8 @@ public class Minecraft4k
     public void paint(java.awt.Graphics g)
     {
         g.drawImage(screen, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, null);
+        
+        g.drawImage(crosshair, WINDOW_WIDTH / 2 - CROSS_SIZE / 2, WINDOW_HEIGHT / 2 - CROSS_SIZE / 2, null);
     }
     
     // ew java
