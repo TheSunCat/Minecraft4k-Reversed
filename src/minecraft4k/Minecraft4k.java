@@ -228,10 +228,9 @@ public class Minecraft4k
                                     // finds the max of it
                                     // uses that to make the gray scale detail darker if the current pixel is part of an annual ring
                                     // and adds some noice as a finishig touch
-                                    int centerThingy = TEXTURE_RES / 2 - 1;
-                                    
-                                    int gsd_final = x - centerThingy;
-                                    int gsd_tempB = (y % TEXTURE_RES) - centerThingy;
+                                    int woodCenter = TEXTURE_RES / 2 - 1;
+                                    int gsd_final = x - woodCenter;
+                                    int gsd_tempB = (y % TEXTURE_RES) - woodCenter;
 
                                     if (gsd_final < 0)
                                         gsd_final = 1 - gsd_final;
@@ -338,21 +337,20 @@ public class Minecraft4k
                             int colliderBlockZ = (int)(newPlayerZ + (colliderIndex >> 1 & 1) * 0.6F - 0.3F) - WORLD_SIZE;
                             
                             // check collision with world bounds and world blocks
-                            if (colliderBlockX < 0 || colliderBlockY < 0 || colliderBlockZ < 0
+                            if (colliderBlockX < 0 || colliderBlockZ < 0
                                     || colliderBlockX >= WORLD_SIZE || colliderBlockY >= WORLD_HEIGHT || colliderBlockZ >= WORLD_SIZE
-                                    || world[colliderBlockX + colliderBlockY * WORLD_SIZE + colliderBlockZ * (WORLD_SIZE * WORLD_HEIGHT)] > BLOCK_AIR) {
+                                    || world[colliderBlockX + colliderBlockY * WORLD_SIZE + colliderBlockZ * (WORLD_SIZE * WORLD_HEIGHT)] != BLOCK_AIR) {
                                 
-                                if (axisIndex != AXIS_Z) //not checking for vertical movement
-                                    continue OUTER; //movement is invalid
+                                if (axisIndex != AXIS_Z) // not checking for vertical movement
+                                    continue OUTER; // movement is invalid
                                 
                                 // if we're falling, colliding, and we press space
                                 if (input[KeyEvent.VK_SPACE] == true && velocityY > 0.0F) {
-                                    input[KeyEvent.VK_SPACE] = false;
                                     velocityY = -0.1F; // jump
                                     break OUTER;
                                 }
                                 
-                                // stop vertical movement (is this needed?)
+                                // stop vertical movement
                                 velocityY = 0.0F;
                                 break OUTER;
                             }
