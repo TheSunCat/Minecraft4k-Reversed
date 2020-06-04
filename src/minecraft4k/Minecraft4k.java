@@ -34,6 +34,8 @@ public class Minecraft4k
     static int SCR_RES_X = (int) (107 * Math.pow(2, SCR_DETAIL));
     static int SCR_RES_Y = (int) (60 * Math.pow(2, SCR_DETAIL));
     
+    final static float RENDER_DIST = 20.0f;
+    
     final static int THREADS = 6;
     static ArrayList<RenderThread> threadList = new ArrayList();
     
@@ -56,7 +58,7 @@ public class Minecraft4k
     final static int BLOCK_WOOD = 7;
     final static int BLOCK_LEAVES = 8;
     
-    final static int TEXTURE_SIZE = 16;
+    final static int PERLIN_RES = 1024;
     
     static BufferedImage crosshair;
     final static int CROSS_SIZE = 32;
@@ -78,9 +80,23 @@ public class Minecraft4k
                 if(((Math.abs(x - CROSS_SIZE / 2) + 2) * (Math.abs(y - CROSS_SIZE / 2) + 2) < Math.sqrt((CROSS_SIZE * CROSS_SIZE / 2)))
                         && (Math.abs(x - CROSS_SIZE / 2) + 2) + (Math.abs(y - CROSS_SIZE / 2) + 2) < CROSS_SIZE * 0.4375f
                         && (Math.abs(x - CROSS_SIZE / 2) + 2) + (Math.abs(y - CROSS_SIZE / 2) + 2) > CROSS_SIZE * 0.296875f)
-                {
                     crosshair.setRGB(x, y, 0xFFFFFFFF);
-                }
+            }
+        }
+        
+        java.util.Random localRand = new java.util.Random();
+        for(int x = 0; x < PERLIN_RES; x++) {
+            for(int y = 0; y < PERLIN_RES; y++) {
+                float vecX = localRand.nextFloat();
+                float vecY = localRand.nextFloat();
+                
+                // normalize
+                double len = Math.sqrt(vecX * vecX + vecY * vecY);
+                vecX /= len;
+                vecY /= len;
+                
+                PERLIN_VECTORS[x][y][0] = vecX;
+                PERLIN_VECTORS[x][y][1] = vecY;
             }
         }
         
@@ -133,9 +149,13 @@ public class Minecraft4k
 
     volatile static float newHoveredBlock = -1.0f;
     
+    final static float[][][] PERLIN_VECTORS = new float[PERLIN_RES][PERLIN_RES][2];
+    
     static int[] screenBuffer = ((DataBufferInt) SCREEN.getRaster().getDataBuffer()).getData();
     static int[] world = new int[WORLD_SIZE * WORLD_HEIGHT * WORLD_SIZE];
-    static int[] textureAtlas = new int[16 * 3 * TEXTURE_SIZE * TEXTURE_SIZE];
+    static int[] textureAtlas = new int[16 * 3 * TEXTURE_RES * TEXTURE_RES];
+    
+    boolean classic = false;
     
     public void run() {
         try {
@@ -145,13 +165,26 @@ public class Minecraft4k
             for (int x = 0; x < WORLD_SIZE; x++) {
                 for(int y = 0; y < WORLD_HEIGHT; y++) {
                     for(int z = 0; z < WORLD_SIZE; z++) {
-                    
                         int block;
-                        if(y > 32 + rand.nextInt(8))
-                            block = (rand.nextInt(8) + 1);
-                        else
-                            block = 0;
                         
+                        if(classic) {
+                            if(y > 32 + rand.nextInt(8))
+                                block = (rand.nextInt(8) + 1);
+                            else
+                                block = BLOCK_AIR;
+                        } else {
+                            int terrainHeight = (int) ((float) (WORLD_HEIGHT / 2) + perlin((float) (x / (float) (WORLD_HEIGHT / 2)), (float) (z / (float) (WORLD_HEIGHT / 2))) * 15.0f);
+                            
+                            if(y > 40)
+                                block = BLOCK_STONE;
+                            else if (y > terrainHeight + 1)
+                                block = 2; // dirt
+                            else if (y > terrainHeight)
+                                block = BLOCK_GRASS;
+                            else
+                                block = BLOCK_AIR;
+                        }
+
                         world[x * WORLD_SIZE * WORLD_SIZE + y * WORLD_HEIGHT + z] = block;
                     }
                 }
@@ -162,8 +195,8 @@ public class Minecraft4k
             for (int blockType = 1; blockType < 16; blockType++) {
                 int gsd_tempA = 0xFF - rand.nextInt(96);
 
-                for (int y = 0; y < TEXTURE_SIZE * 3; y++) {
-                    for (int x = 0; x < TEXTURE_SIZE; x++) {
+                for (int y = 0; y < TEXTURE_RES * 3; y++) {
+                    for (int x = 0; x < TEXTURE_RES; x++) {
                         // gets executed per pixel/texel
                         
                         if (blockType != BLOCK_STONE || rand.nextInt(3) == 0) // if the block type is stone, update the noise value less often to get a streched out look
@@ -176,16 +209,16 @@ public class Minecraft4k
                                 tint = 0x7F7F7F; // grey
                                 break;
                             case BLOCK_GRASS:
-                                if (y < (x * x * 3 + x * 81 >> 2 & 0x3) + 18) // grass + grass edge
+                                if (y < (x * x * 3 + x * 81 >> 2 & 0x3) + (float) (TEXTURE_RES * 1.125f)) // grass + grass edge
                                     tint = 0x6AAA40; // green
-                                else if (y < (x * x * 3 + x * 81 >> 2 & 0x3) + 19) // grass edge shadow
+                                else if (y < (x * x * 3 + x * 81 >> 2 & 0x3) + (float) (TEXTURE_RES * 1.1875f)) // grass edge shadow
                                     gsd_tempA = gsd_tempA * 2 / 3;
                                 break;
-                            case BLOCK_WOOD: // FIXME: wood bottom no longer darker help
+                            case BLOCK_WOOD:
                                 tint = 0x675231; // brown (bark)
-                                if(!(y >= TEXTURE_SIZE && y < TEXTURE_SIZE * 2) && // avoid this block when we are on second row
-                                        x > 0 && x < TEXTURE_SIZE - 1 &&
-                                        ((y > 0 && y < TEXTURE_SIZE - 1) || (y > TEXTURE_SIZE * 2 && y < TEXTURE_SIZE * 3 - 1))) { // wood side area
+                                if(!(y >= TEXTURE_RES && y < TEXTURE_RES * 2) && // avoid this block when we are on second row
+                                        x > 0 && x < TEXTURE_RES - 1 &&
+                                        ((y > 0 && y < TEXTURE_RES - 1) || (y > TEXTURE_RES * 2 && y < TEXTURE_RES * 3 - 1))) { // wood side area
                                     tint = 0xBC9862; // light brown
 
                                     // the following code repurposes 2 gsd variables making it a bit hard to read
@@ -193,8 +226,10 @@ public class Minecraft4k
                                     // finds the max of it
                                     // uses that to make the gray scale detail darker if the current pixel is part of an annual ring
                                     // and adds some noice as a finishig touch
-                                    int gsd_final = x - 7;
-                                    int gsd_tempB = (y % TEXTURE_RES) - 7;
+                                    int centerThingy = TEXTURE_RES / 2 - 1;
+                                    
+                                    int gsd_final = x - centerThingy;
+                                    int gsd_tempB = (y % TEXTURE_RES) - centerThingy;
 
                                     if (gsd_final < 0)
                                         gsd_final = 1 - gsd_final;
@@ -221,7 +256,7 @@ public class Minecraft4k
                         }
 
                         int gsd_final = gsd_tempA;
-                        if (y >= TEXTURE_SIZE * 2) // bottom side of the block
+                        if (y >= TEXTURE_RES * 2) // bottom side of the block
                             gsd_final /= 2; // has to be darker
 
                         if (blockType == BLOCK_LEAVES) {
@@ -238,7 +273,7 @@ public class Minecraft4k
                                   (tint       & 0xFF) * gsd_final / 0xFF;
 
                         // write pixel to the texture atlas
-                        textureAtlas[x + y * TEXTURE_SIZE + blockType * (TEXTURE_SIZE * TEXTURE_SIZE) * 3] = col;
+                        textureAtlas[x + y * TEXTURE_RES + blockType * (TEXTURE_RES * TEXTURE_RES) * 3] = col;
                     }
                 }
             }
@@ -424,6 +459,49 @@ public class Minecraft4k
         }
     }
     
+     // Compute Perlin noise at coordinates x, y
+    static float perlin(float x, float y) {
+
+        // Determine grid cell coordinates
+        int x0 = (int) x;
+        int x1 = x0 + 1;
+        int y0 = (int) y;
+        int y1 = y0 + 1;
+
+        // Determine interpolation weights
+        // Could also use higher order polynomial/s-curve here
+        float sx = x - (float)x0;
+        float sy = y - (float)y0;
+
+        // Interpolate between grid point gradients
+        float n0, n1, ix0, ix1, value;
+        n0 = dotGridGradient(x0, y0, x, y);
+        n1 = dotGridGradient(x1, y0, x, y);
+        ix0 = lerp(n0, n1, sx);
+        n0 = dotGridGradient(x0, y1, x, y);
+        n1 = dotGridGradient(x1, y1, x, y);
+        ix1 = lerp(n0, n1, sx);
+        value = lerp(ix0, ix1, sy);
+
+        return value;
+    }
+    
+    // Function to linearly interpolate between a0 and a1
+    // Weight w should be in the range [0.0, 1.0]
+    static float lerp(float a0, float a1, float w) {
+        return (1.0f - w) * a0 + w * a1;
+    }
+
+    // Computes the dot product of the distance and gradient vectors.
+    static float dotGridGradient(int ix, int iy, float x, float y) {
+        // Compute the distance vector
+        float dx = x - (float)ix;
+        float dy = y - (float)iy;
+
+        // Compute the dot-product
+        return (dx * PERLIN_VECTORS[iy][ix][0] + dy * PERLIN_VECTORS[iy][ix][1]);
+    }
+    
     @Override
     public void paint(java.awt.Graphics g)
     {
@@ -444,8 +522,6 @@ public class Minecraft4k
     {
         SCR_RES_X = (int) (107 * Math.pow(2, SCR_DETAIL));
         SCR_RES_Y = (int) (60  * Math.pow(2, SCR_DETAIL));
-        
-        System.out.println(SCR_RES_X);
         
         SCREEN = new BufferedImage(SCR_RES_X, SCR_RES_Y, 1);
         screenBuffer = ((DataBufferInt) SCREEN.getRaster().getDataBuffer()).getData();
@@ -605,7 +681,7 @@ class RenderThread implements Runnable {
 
                 int pixelColor = 0;
                 int fogMultipliter = 0x00;
-                double furthestHit = 20.0D;
+                double furthestHit = RENDER_DIST;
                 float playerReach = 5.0F;
 
                 for (int axis = 0; axis < 3; axis++) {
@@ -708,7 +784,7 @@ class RenderThread implements Runnable {
 
                             if (textureColor > 0) {
                                 pixelColor = textureColor;
-                                fogMultipliter = 0xFF - (int)(rayTravelDist / 20.0F * 0xFF);
+                                fogMultipliter = 0xFF - (int)(rayTravelDist / RENDER_DIST * 0xFF);
                                 fogMultipliter = fogMultipliter * (0xFF - (axis + 2) % 3 * 50) / 0xFF;
                                 furthestHit = rayTravelDist;
                             }
