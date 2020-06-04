@@ -2,6 +2,7 @@ package minecraft4k;
 
 import java.awt.Color;
 import java.awt.Font;
+import java.awt.MouseInfo;
 import java.awt.Point;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
@@ -16,10 +17,12 @@ import static minecraft4k.Minecraft4k.*;
 public class Minecraft4k
     extends JPanel
 {
+    static JFrame frame;
+    
     static boolean[] input = new boolean[32767];
     
     static Point mouseDelta = new Point();
-    static long lastMouseMove = System.currentTimeMillis();
+    volatile static long lastMouseMove = System.currentTimeMillis();
     
     volatile static boolean needsResUpdate = true;
     
@@ -63,7 +66,7 @@ public class Minecraft4k
     
     public static void main(String[] args)
     {
-        JFrame frame = new JFrame("Minecraft4k");
+        frame = new JFrame("Minecraft4k");
         Minecraft4k m4k = new Minecraft4k();
         
         crosshair = new BufferedImage(CROSS_SIZE, CROSS_SIZE, BufferedImage.TYPE_INT_ARGB);
@@ -111,8 +114,13 @@ public class Minecraft4k
     static float velocityX = 0.0f;
     static float velocityY = 0.0f;
     static float velocityZ = 0.0f;
-
-
+    
+    // mouse movement stuff
+    //volatile static boolean recentering = true;
+    volatile static Point mouseLocation = new Point();
+    volatile static Point lastMouseLocation = new Point();
+    volatile static boolean hovered = false;
+    
     volatile static int hoveredBlockIndex = -1; // index in world array
     volatile static int placeBlockOffset = 0; // offset to hoveredBlockIndex to find where a block will be placed
 
@@ -365,9 +373,6 @@ public class Minecraft4k
                 
                 deltaTime = System.currentTimeMillis() - time;
                 
-                if(deltaTime > 20)
-                    System.err.println(deltaTime);
-                
                 for(RenderThread t : threadList)
                     System.arraycopy(t.buffer, 0, screenBuffer, t.start, t.buffer.length);
                 
@@ -378,9 +383,44 @@ public class Minecraft4k
                 Thread.sleep(2);
                 
                 repaint();
+                
+                if(hovered) {
+                    mouseLocation = MouseInfo.getPointerInfo().getLocation();
+                    
+                    mouseDelta = new Point(mouseLocation.x - lastMouseLocation.x, mouseLocation.y - lastMouseLocation.y);
+                    
+                    recenterMouse(frame);
+                    
+                    mouseLocation = MouseInfo.getPointerInfo().getLocation();
+                    lastMouseLocation = mouseLocation;
+                } else {
+                    mouseDelta = new Point();
+                }
             }
         } catch (Exception localException) {
             localException.printStackTrace();
+        }
+    }
+    
+    volatile java.awt.Robot robot;
+    private void recenterMouse(JFrame frame) {
+        // create Robot
+        if(robot == null) {
+            try {
+                robot = new java.awt.Robot();
+            } catch (java.awt.AWTException ex) {
+                ex.printStackTrace();
+            }
+        }
+        
+        if (robot != null && frame.isShowing()) {
+            Point frameCenter = new Point();
+            frameCenter.x = frame.getWidth() / 2;
+            frameCenter.y = frame.getHeight() / 2;
+            javax.swing.SwingUtilities.convertPointToScreen(frameCenter, frame);
+            
+            //recentering = true;
+            robot.mouseMove(frameCenter.x, frameCenter.y);
         }
     }
     
@@ -405,6 +445,8 @@ public class Minecraft4k
         SCR_RES_X = (int) (107 * Math.pow(2, SCR_DETAIL));
         SCR_RES_Y = (int) (60  * Math.pow(2, SCR_DETAIL));
         
+        System.out.println(SCR_RES_X);
+        
         SCREEN = new BufferedImage(SCR_RES_X, SCR_RES_Y, 1);
         screenBuffer = ((DataBufferInt) SCREEN.getRaster().getDataBuffer()).getData();
         
@@ -421,6 +463,43 @@ public class Minecraft4k
             
             start = end;
         }
+        
+        // auto generated code - do not delete
+        String title = "Minecraft4k";
+        
+        switch(SCR_RES_X) {
+            case 6:
+                title += " on battery-saving mode";
+                break;
+            case 13:
+                title += " on a potato";
+                break;
+            case 26:
+                title += " on an undocked switch";
+                break;
+            case 53:
+                title += " on a TI-84";
+                break;
+            case 107:
+                title += " on an Atari 2600";
+                break;
+            case 428:
+                title += " at SD";
+                break;
+            case 856:
+                title += " at HD";
+                break;
+            case 1712:
+                title += " at Full HD";
+                break;
+            case 3424:
+                title += " at 4K";
+                break;
+            case 6848:
+                title += " on a NASA supercomputer";
+        }
+        
+        frame.setTitle(title);
     }
     
     // ew java
@@ -434,18 +513,21 @@ class MinecraftEventListener extends java.awt.event.KeyAdapter implements java.a
 {
     @Override
     public void keyPressed(KeyEvent e) {
-        if(e.getKeyCode() == KeyEvent.VK_COMMA) {
-            SCR_DETAIL++;
-            needsResUpdate = true;
-        } else if(e.getKeyCode() == KeyEvent.VK_PERIOD) {
-            SCR_DETAIL--;
-            
-            if(SCR_RES_Y <= 1)
+        switch (e.getKeyCode()) {
+            case KeyEvent.VK_PERIOD:
                 SCR_DETAIL++;
-            
-            needsResUpdate = true;
-        } else
-            input[e.getKeyCode()] = true;
+                needsResUpdate = true;
+                break;
+            case KeyEvent.VK_COMMA:
+                SCR_DETAIL--;
+                if(SCR_RES_Y <= 1)
+                    SCR_DETAIL++;
+                needsResUpdate = true;
+                break;
+            default:
+                input[e.getKeyCode()] = true;
+                break;
+        }
     }
 
     @Override
@@ -455,78 +537,30 @@ class MinecraftEventListener extends java.awt.event.KeyAdapter implements java.a
 
     @Override
     public void mousePressed(MouseEvent e) {
-        mouseMoved(e);
-        
-        if (e.isMetaDown()) {
+        if (e.getButton() == MouseEvent.BUTTON1) {
             input[MOUSE_LEFT] = true;
-            return;
+        } else if (e.getButton() == MouseEvent.BUTTON3) {
+            input[MOUSE_RIGHT] = true;
         }
-        input[MOUSE_RIGHT] = true;
     }
 
     @Override
     public void mouseReleased(MouseEvent e) {
-        if (e.isMetaDown()) {
+        if (e.getButton() == MouseEvent.BUTTON1) {
             input[MOUSE_LEFT] = false;
-            return;
+        } else if (e.getButton() == MouseEvent.BUTTON3) {
+            input[MOUSE_RIGHT] = false;
         }
-        input[MOUSE_RIGHT] = false;
-    }
-    
-    // mouse movement stuff
-    boolean recentering = true;
-    Point mouseLocation = new Point();
-    
-    java.awt.Robot robot;
-    private void recenterMouse(JFrame frame) {
-        // create Robot
-        if(robot == null) {
-            try {
-                robot = new java.awt.Robot();
-            } catch (java.awt.AWTException ex) {
-                ex.printStackTrace();
-            }
-        }
-        
-        if (robot != null && frame.isShowing()) {
-            Point frameCenter = new Point();
-            frameCenter.x = frame.getWidth() / 2;
-            frameCenter.y = frame.getHeight() / 2;
-            javax.swing.SwingUtilities.convertPointToScreen(frameCenter, frame);
-            
-            recentering = true;
-            robot.mouseMove(frameCenter.x, frameCenter.y);
-        }
-    }
-    
-    @Override
-    public void mouseMoved(MouseEvent e) {
-        // this event is from re-centering the mouse - ignore it
-        if (recentering)
-        {
-            javax.swing.SwingUtilities.invokeLater(()->recentering = false);
-        } else {
-            mouseDelta.x = e.getX() - mouseLocation.x;
-            mouseDelta.y = e.getY() - mouseLocation.y;
-            
-            // recenter the mouse
-            recenterMouse((JFrame) e.getSource());
-            
-            lastMouseMove = System.currentTimeMillis();
-        }
-        
-        mouseLocation.x = e.getX();
-        mouseLocation.y = e.getY();
     }
     
     @Override
     public void mouseEntered(MouseEvent e) {
-        recenterMouse((JFrame) e.getSource());
+        hovered = ((JFrame) e.getSource()).isFocused();
     }
     
     @Override
     public void mouseExited(MouseEvent e) {
-        mouseDelta = new Point();
+        hovered = ((JFrame) e.getSource()).isFocused();
     }
 
     @Override
@@ -534,6 +568,9 @@ class MinecraftEventListener extends java.awt.event.KeyAdapter implements java.a
 
     @Override
     public void mouseDragged(MouseEvent e) {}
+
+    @Override
+    public void mouseMoved(MouseEvent e) {}
 }
 
 class RenderThread implements Runnable {

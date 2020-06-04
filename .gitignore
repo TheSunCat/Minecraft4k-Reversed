@@ -6,3 +6,5 @@ nbbuild/
 dist/
 nbdist/
 .nb-gradle/
+proguard-shrink.bat
+minecraft4k.cfg
