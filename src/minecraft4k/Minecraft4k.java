@@ -45,7 +45,7 @@ public class Minecraft4k
     final static int TEXTURE_RES = 16;
     
     final static int WORLD_SIZE = 64;
-    final static int WORLD_HEIGHT = WORLD_SIZE;
+    final static int WORLD_HEIGHT = 64;
     
     final static int AXIS_X = 0;
     final static int AXIS_Y = 1;
@@ -123,16 +123,15 @@ public class Minecraft4k
 
     static BufferedImage SCREEN = new BufferedImage(SCR_RES_X, SCR_RES_Y, 1);
     
-    static float playerX = 96.5f;
-    static float playerY = WORLD_HEIGHT + 1; // as y -> inf, player -> down
-    static float playerZ = 96.5f;
+    static float playerX = WORLD_SIZE + WORLD_SIZE / 2 + 0.5f;
+    static float playerY = WORLD_HEIGHT + 1; // more y means more down
+    static float playerZ = playerX;
 
     static float velocityX = 0.0f;
     static float velocityY = 0.0f;
     static float velocityZ = 0.0f;
     
     // mouse movement stuff
-    //volatile static boolean recentering = true;
     volatile static Point mouseLocation = new Point();
     volatile static Point lastMouseLocation = new Point();
     volatile static boolean hovered = false;
@@ -175,7 +174,7 @@ public class Minecraft4k
                         } else {
                             int terrainHeight = (int) ((float) (WORLD_HEIGHT / 2) + perlin((float) (x / (float) (WORLD_HEIGHT / 2)), (float) (z / (float) (WORLD_HEIGHT / 2))) * 15.0f);
                             
-                            if(y > 40)
+                            if(y > WORLD_HEIGHT * 0.625f)
                                 block = BLOCK_STONE;
                             else if (y > terrainHeight + 1)
                                 block = 2; // dirt
@@ -185,22 +184,25 @@ public class Minecraft4k
                                 block = BLOCK_AIR;
                         }
 
-                        world[x * WORLD_SIZE * WORLD_SIZE + y * WORLD_HEIGHT + z] = block;
+                        world[x * WORLD_SIZE * WORLD_HEIGHT + y * WORLD_SIZE + z] = block;
                     }
                 }
             }
             
-            // procedually generates the 16x3 textureAtlas with a tileSize of 16
+            // set random seed to generate textures
+            rand.setSeed(151910774187927L);
+            
+            // procedually generates the 16x3 textureAtlas
             // gsd = grayscale detail
             for (int blockType = 1; blockType < 16; blockType++) {
-                int gsd_tempA = 0xFF - rand.nextInt(96);
+                int gsd_tempA = 0xFF - rand.nextInt(0x60);
 
                 for (int y = 0; y < TEXTURE_RES * 3; y++) {
                     for (int x = 0; x < TEXTURE_RES; x++) {
                         // gets executed per pixel/texel
                         
                         if (blockType != BLOCK_STONE || rand.nextInt(3) == 0) // if the block type is stone, update the noise value less often to get a streched out look
-                            gsd_tempA = 0xFF - rand.nextInt(96);
+                            gsd_tempA = 0xFF - rand.nextInt(0x60);
                         
                         int tint = 0x966C4A; // brown (dirt)
                         switch(blockType)
@@ -338,7 +340,7 @@ public class Minecraft4k
                             // check collision with world bounds and world blocks
                             if (colliderBlockX < 0 || colliderBlockY < 0 || colliderBlockZ < 0
                                     || colliderBlockX >= WORLD_SIZE || colliderBlockY >= WORLD_HEIGHT || colliderBlockZ >= WORLD_SIZE
-                                    || world[colliderBlockX + colliderBlockY * WORLD_HEIGHT + colliderBlockZ * (WORLD_SIZE * WORLD_SIZE)] > BLOCK_AIR) {
+                                    || world[colliderBlockX + colliderBlockY * WORLD_SIZE + colliderBlockZ * (WORLD_SIZE * WORLD_HEIGHT)] > BLOCK_AIR) {
                                 
                                 if (axisIndex != AXIS_Z) //not checking for vertical movement
                                     continue OUTER; //movement is invalid
@@ -381,7 +383,7 @@ public class Minecraft4k
                     
                     // check if hovered block is within world boundaries
                     if (magicX >= 0 && magicY >= 0 && magicZ >= 0 && magicX < WORLD_SIZE && magicY < WORLD_HEIGHT && magicZ < WORLD_SIZE)
-                        world[magicX + magicY * WORLD_HEIGHT + magicZ * (WORLD_SIZE * WORLD_SIZE)] = BLOCK_AIR;
+                        world[magicX + magicY * WORLD_SIZE + magicZ * (WORLD_SIZE * WORLD_HEIGHT)] = BLOCK_AIR;
                 }
                 
                 // render the SCREEN
@@ -592,12 +594,15 @@ class MinecraftEventListener extends java.awt.event.KeyAdapter implements java.a
         switch (e.getKeyCode()) {
             case KeyEvent.VK_PERIOD:
                 SCR_DETAIL++;
+                if(SCR_DETAIL > 6)
+                    SCR_DETAIL = 6;
+                
                 needsResUpdate = true;
                 break;
             case KeyEvent.VK_COMMA:
                 SCR_DETAIL--;
-                if(SCR_RES_Y <= 1)
-                    SCR_DETAIL++;
+                if(SCR_DETAIL < -4)
+                    SCR_DETAIL = -4;
                 needsResUpdate = true;
                 break;
             default:
@@ -745,10 +750,10 @@ class RenderThread implements Runnable {
                         int blockHitY = (int) rayY - WORLD_HEIGHT;
                         int blockHitZ = (int) rayZ - WORLD_SIZE;
 
-                        if (blockHitX < 0 || blockHitY < 0 || blockHitZ < 0 || blockHitX >= WORLD_SIZE || blockHitY >= WORLD_SIZE || blockHitZ >= WORLD_SIZE)
+                        if (blockHitX < 0 || blockHitY < 0 || blockHitZ < 0 || blockHitX >= WORLD_SIZE || blockHitY >= WORLD_HEIGHT || blockHitZ >= WORLD_SIZE)
                             break;
 
-                        int blockHitIndex = blockHitX + blockHitY * WORLD_HEIGHT + blockHitZ * (WORLD_SIZE * WORLD_SIZE);
+                        int blockHitIndex = blockHitX + blockHitY * WORLD_SIZE + blockHitZ * (WORLD_SIZE * WORLD_HEIGHT);
                         int blockHitID = world[blockHitIndex];
 
                         if (blockHitID != BLOCK_AIR) {
@@ -778,7 +783,18 @@ class RenderThread implements Runnable {
                                 if (delta > 0.0F)
                                     placeBlockOffset = -1;
 
-                                placeBlockOffset *= Math.pow(WORLD_SIZE, axis);
+                                switch(axis) {
+                                    case AXIS_X:
+                                        placeBlockOffset *= 1;
+                                        break;
+                                    case AXIS_Y:
+                                        placeBlockOffset *= WORLD_SIZE;
+                                        break;
+                                    case AXIS_Z:
+                                        placeBlockOffset *= WORLD_SIZE * WORLD_HEIGHT;
+                                }
+                                
+                                
                                 playerReach = rayTravelDist;
                             }
 
