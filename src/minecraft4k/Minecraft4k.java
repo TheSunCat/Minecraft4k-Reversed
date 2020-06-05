@@ -136,8 +136,17 @@ public class Minecraft4k
     volatile static Point lastMouseLocation = new Point();
     volatile static boolean hovered = false;
     
-    volatile static int hoveredBlockIndex = -1; // index in world array
-    volatile static int placeBlockOffset = 0; // offset to hoveredBlockIndex to find where a block will be placed
+    volatile static int hoveredBlockPosX = -1;
+    volatile static int hoveredBlockPosY = -1;
+    volatile static int hoveredBlockPosZ = -1;
+    
+    volatile static int placeBlockPosX = -1;
+    volatile static int placeBlockPosY = -1;
+    volatile static int placeBlockPosZ = -1;
+    
+    volatile static int newHoverBlockPosX = -1;
+    volatile static int newHoverBlockPosY = -1;
+    volatile static int newHoverBlockPosZ = -1;
 
     static float cameraYaw = 0.0f;
     static float cameraPitch = 0.0f;
@@ -145,13 +154,11 @@ public class Minecraft4k
     
     static float sinYaw, sinPitch;
     static float cosYaw, cosPitch;
-
-    volatile static float newHoveredBlock = -1.0f;
     
     final static float[][][] PERLIN_VECTORS = new float[PERLIN_RES][PERLIN_RES][2];
     
     static int[] screenBuffer = ((DataBufferInt) SCREEN.getRaster().getDataBuffer()).getData();
-    static int[] world = new int[WORLD_SIZE * WORLD_HEIGHT * WORLD_SIZE];
+    static byte[][][] world = new byte[WORLD_SIZE][WORLD_HEIGHT][WORLD_SIZE];
     static int[] textureAtlas = new int[16 * 3 * TEXTURE_RES * TEXTURE_RES];
     
     boolean classic = false;
@@ -164,11 +171,11 @@ public class Minecraft4k
             for (int x = 0; x < WORLD_SIZE; x++) {
                 for(int y = 0; y < WORLD_HEIGHT; y++) {
                     for(int z = 0; z < WORLD_SIZE; z++) {
-                        int block;
+                        byte block;
                         
                         if(classic) {
                             if(y > 32 + rand.nextInt(8))
-                                block = (rand.nextInt(8) + 1);
+                                block = (byte) (rand.nextInt(8) + 1);
                             else
                                 block = BLOCK_AIR;
                         } else {
@@ -184,7 +191,7 @@ public class Minecraft4k
                                 block = BLOCK_AIR;
                         }
 
-                        world[x * WORLD_SIZE * WORLD_HEIGHT + y * WORLD_SIZE + z] = block;
+                        world[x][y][z] = block;
                     }
                 }
             }
@@ -339,7 +346,7 @@ public class Minecraft4k
                             // check collision with world bounds and world blocks
                             if (colliderBlockX < 0 || colliderBlockZ < 0
                                     || colliderBlockX >= WORLD_SIZE || colliderBlockY >= WORLD_HEIGHT || colliderBlockZ >= WORLD_SIZE
-                                    || world[colliderBlockX + colliderBlockY * WORLD_SIZE + colliderBlockZ * (WORLD_SIZE * WORLD_HEIGHT)] != BLOCK_AIR) {
+                                    || world[colliderBlockX][colliderBlockY][colliderBlockZ] != BLOCK_AIR) {
                                 
                                 if (axisIndex != AXIS_Z) // not checking for vertical movement
                                     continue OUTER; // movement is invalid
@@ -362,16 +369,18 @@ public class Minecraft4k
                     }
                 }
                 
-                // break block
-                if (input[MOUSE_LEFT] == true && hoveredBlockIndex > 0) {
-                    world[hoveredBlockIndex] = BLOCK_AIR;
-                    input[MOUSE_LEFT] = false;
-                }
-                
-                // place block
-                if (input[MOUSE_RIGHT] == true && hoveredBlockIndex > 0) {
-                    world[hoveredBlockIndex + placeBlockOffset] = BLOCK_GRASS;
-                    input[MOUSE_RIGHT] = false;
+                if(hoveredBlockPosX > -1) {
+                    // break block
+                    if (input[MOUSE_LEFT] == true) {
+                        world[hoveredBlockPosX][hoveredBlockPosY][hoveredBlockPosZ] = BLOCK_AIR;
+                        input[MOUSE_LEFT] = false;
+                    }
+
+                    // place block
+                    if (input[MOUSE_RIGHT] == true) {
+                        world[placeBlockPosX][placeBlockPosY][placeBlockPosZ] = BLOCK_GRASS;
+                        input[MOUSE_RIGHT] = false;
+                    }
                 }
                 
                 for (int i8 = 0; i8 < 12; i8++) {
@@ -381,11 +390,13 @@ public class Minecraft4k
                     
                     // check if hovered block is within world boundaries
                     if (magicX >= 0 && magicY >= 0 && magicZ >= 0 && magicX < WORLD_SIZE && magicY < WORLD_HEIGHT && magicZ < WORLD_SIZE)
-                        world[magicX + magicY * WORLD_SIZE + magicZ * (WORLD_SIZE * WORLD_HEIGHT)] = BLOCK_AIR;
+                        world[magicX][magicY][magicZ] = BLOCK_AIR;
                 }
                 
-                // render the SCREEN
-                newHoveredBlock = -1.0F;
+                // render the screen
+                newHoverBlockPosX = -1;
+                newHoverBlockPosY = -1;
+                newHoverBlockPosZ = -1;
                 
                 for(RenderThread t : threadList)
                     t.render = true;
@@ -404,7 +415,13 @@ public class Minecraft4k
                         break;
                 }
                 
-                hoveredBlockIndex = (int) newHoveredBlock;
+                hoveredBlockPosX = newHoverBlockPosX;
+                hoveredBlockPosY = newHoverBlockPosY;
+                hoveredBlockPosZ = newHoverBlockPosZ;
+                
+                placeBlockPosX += hoveredBlockPosX;
+                placeBlockPosY += hoveredBlockPosY;
+                placeBlockPosZ += hoveredBlockPosZ;
                 
                 deltaTime = System.currentTimeMillis() - time;
                 
@@ -414,6 +431,8 @@ public class Minecraft4k
                 // reset mouse delta so if we stop moving the mouse it doesn't drift
                 if(System.currentTimeMillis() - lastMouseMove > 25)
                     mouseDelta = new Point();
+                
+                System.out.println(playerX + ", " + playerZ);
                 
                 Thread.sleep(2);
                 
@@ -751,8 +770,7 @@ class RenderThread implements Runnable {
                         if (blockHitX < 0 || blockHitY < 0 || blockHitZ < 0 || blockHitX >= WORLD_SIZE || blockHitY >= WORLD_HEIGHT || blockHitZ >= WORLD_SIZE)
                             break;
 
-                        int blockHitIndex = blockHitX + blockHitY * WORLD_SIZE + blockHitZ * (WORLD_SIZE * WORLD_HEIGHT);
-                        int blockHitID = world[blockHitIndex];
+                        int blockHitID = world[blockHitX][blockHitY][blockHitZ];
 
                         if (blockHitID != BLOCK_AIR) {
                             int texFetchX = (int)((rayX + rayZ) * TEXTURE_RES) % TEXTURE_RES;
@@ -768,7 +786,7 @@ class RenderThread implements Runnable {
                             }
 
                             int textureColor;
-                            if(blockHitIndex == hoveredBlockIndex &&
+                            if(blockHitX == hoveredBlockPosX && blockHitY == hoveredBlockPosY && blockHitZ == hoveredBlockPosZ &&
                                     (  (texFetchX == 0               || texFetchY % TEXTURE_RES == 0)
                                     || (texFetchX == TEXTURE_RES - 1 || texFetchY % TEXTURE_RES == TEXTURE_RES - 1)))
                                 textureColor = 0xFFFFFF; // add white outline to hovered block
@@ -776,20 +794,27 @@ class RenderThread implements Runnable {
                                 textureColor = textureAtlas[texFetchX + texFetchY * TEXTURE_RES + blockHitID * (TEXTURE_RES * TEXTURE_RES) * 3];
 
                             if (rayTravelDist < playerReach && screenX == (SCR_RES_X * 2) / 4 && screenY == (SCR_RES_Y * 2) / 4) {
-                                newHoveredBlock = blockHitIndex;
-                                placeBlockOffset = 1;
+                                newHoverBlockPosX = blockHitX;
+                                newHoverBlockPosY = blockHitY;
+                                newHoverBlockPosZ = blockHitZ;
+                                
+                                placeBlockPosX = 0;
+                                placeBlockPosY = 0;
+                                placeBlockPosZ = 0;
+                                
+                                int direction = 1;
                                 if (delta > 0.0F)
-                                    placeBlockOffset = -1;
+                                    direction = -1;
 
                                 switch(axis) {
                                     case AXIS_X:
-                                        placeBlockOffset *= 1;
+                                        placeBlockPosX = 1 * direction;
                                         break;
                                     case AXIS_Y:
-                                        placeBlockOffset *= WORLD_SIZE;
+                                        placeBlockPosY = 1 * direction;
                                         break;
                                     case AXIS_Z:
-                                        placeBlockOffset *= WORLD_SIZE * WORLD_HEIGHT;
+                                        placeBlockPosZ = 1 * direction;
                                 }
                                 
                                 
