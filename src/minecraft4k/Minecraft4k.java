@@ -36,7 +36,7 @@ public class Minecraft4k
     
     final static float RENDER_DIST = 20.0f;
     
-    final static int THREADS = 6;
+    final static int THREADS = Runtime.getRuntime().availableProcessors();
     static ArrayList<RenderThread> threadList = new ArrayList();
     
     final static int WINDOW_WIDTH = 856;
@@ -254,24 +254,88 @@ public class Minecraft4k
                                     // and 50% darker if x happens to be odd
                                     gsd_tempA = gsd_tempA * (150 - (x & 1) * 100) / 100;
                                 }
-                                break;
-                            case BLOCK_BRICKS:
-                                tint = 0xB53A15; // red
-                                if ((x + y / 4 * 4) % 8 == 0 || y % 4 == 0) // gap between bricks
-                                    tint = 0xBCAFA5; // reddish light grey
-                                break;
-                                
-                        }
+                            }
+                        } else {
+                            float pNoise = perlin(x * 15, y* 15);
 
-                        int gsd_final = gsd_tempA;
-                        if (y >= TEXTURE_RES * 2) // bottom side of the block
-                            gsd_final /= 2; // has to be darker
+                            tint = 0x966C4A; // brown (dirt)
+                            
+                            gsd_tempA = (int) ((1 - pNoise * 0.5f) * 255);
+                            
+                            System.out.println(pNoise);
+                            switch(blockType) {
+                                case BLOCK_STONE:
+                                    tint = 0x7F7F7F; // grey
+                                    gsd_tempA = (int)((0.75 + Math.round(Math.abs(perlin(x * 0.5f, y * 2))) * 0.125f) * 255);
+                                    break;
+                                case BLOCK_GRASS:
+                                    if(y < (((x * x * 3 + x * 81) / 2) % 4) + 18) // grass + grass edge
+                                        tint = 0x7AFF40; //green
+                                    else if (y < ( ((x * x * 3 + x * 81)/2) % 4) + 19)
+                                        gsd_tempA = gsd_tempA * 1 / 3;
+                                    break;
+                                case BLOCK_WOOD:
+                                    tint = 0x776644; // brown (bark)
 
-                        if (blockType == BLOCK_LEAVES) {
-                            tint = 0x50D937; // green
-                            if (rand.nextInt(2) == 0) {
+                                    float dx = Math.abs(x - 8);
+                                    float dy = Math.abs((y % 16) - 8);
+                                    int gsd_wood = (int) (Math.sqrt(dx * dx + dy * dy) * .25f + Math.max(dx, dy) * .75f);
+
+                                    if(y < 16 || y > 32){
+                                      if (gsd_wood < 7) { // wood inside area
+                                        tint = 0xCCAA77; // light brown
+
+                                        gsd_tempA = 196 - (int)rand.nextInt(32) + gsd_wood % 3 * 32;
+                                      } else if(dx>dy){
+                                        gsd_tempA = (int)(perlin(y, x * .25f) * 255 * (180 - Math.sin(x * Math.PI) * 50) / 100);
+                                      } else {
+                                        gsd_tempA = (int)(perlin(x, y * .25f) * 255 * (180 - Math.sin(x * Math.PI) * 50) / 100);
+                                      }
+                                    } else {
+                                        gsd_tempA = (int)(perlin(x, y * .25f) * 255 * (180 - Math.sin(x * Math.PI) * 50) / 100);
+                                    }
+                                    break;
+                                case BLOCK_BRICKS:
+                                    tint = 0x444444; // red
+
+                                    float brickDX = Math.abs(x%8 - 4);
+                                    float brickDY = Math.abs((y % 4) - 2) * 2;
+
+                                    if(((int)y / 4) % 2 == 1)
+                                      brickDX = Math.abs((x + 4) % 8 - 4);
+
+                                    float d = (float) (Math.sqrt(brickDX * brickDX + brickDY * brickDY) * .5f + Math.max(brickDX, brickDY) * .5f);
+
+                                    if (d > 4) // gap between bricks
+                                        tint = 0xAAAAAA; // light grey
+                                    break;
+                            }
+
+                            gsd_final = gsd_tempA;
+                            if (y >= 32) //bottom side of the block
+                                gsd_final /= 2; //has to be darker
+                            
+                            if(blockType == BLOCK_LEAVES)
+                            {
                                 tint = 0;
-                                gsd_final = 0xFF;
+
+                                float dx = Math.abs(x % 4 - 2) * 2;
+                                float dy = (y % 8) - 4;
+
+                                if(((int) y / 8) % 2 == 1)
+                                  dx = Math.abs((x + 2) % 4 - 2) * 2;
+
+                                dx += pNoise;
+
+                                float d = dx + Math.abs(dy);
+
+                                if(dy < 0)
+                                  d = (float) Math.sqrt(dx*dx + dy*dy);
+
+                                if (d < 3.5f)
+                                    tint = 0xFFCCDD;
+                                else if (d < 4)
+                                    tint = 0xCCAABB;
                             }
                         }
                         
@@ -432,8 +496,6 @@ public class Minecraft4k
                 if(System.currentTimeMillis() - lastMouseMove > 25)
                     mouseDelta = new Point();
                 
-                System.out.println(playerX + ", " + playerZ);
-                
                 Thread.sleep(2);
                 
                 repaint();
@@ -476,49 +538,6 @@ public class Minecraft4k
             //recentering = true;
             robot.mouseMove(frameCenter.x, frameCenter.y);
         }
-    }
-    
-     // Compute Perlin noise at coordinates x, y
-    static float perlin(float x, float y) {
-
-        // Determine grid cell coordinates
-        int x0 = (int) x;
-        int x1 = x0 + 1;
-        int y0 = (int) y;
-        int y1 = y0 + 1;
-
-        // Determine interpolation weights
-        // Could also use higher order polynomial/s-curve here
-        float sx = x - (float)x0;
-        float sy = y - (float)y0;
-
-        // Interpolate between grid point gradients
-        float n0, n1, ix0, ix1, value;
-        n0 = dotGridGradient(x0, y0, x, y);
-        n1 = dotGridGradient(x1, y0, x, y);
-        ix0 = lerp(n0, n1, sx);
-        n0 = dotGridGradient(x0, y1, x, y);
-        n1 = dotGridGradient(x1, y1, x, y);
-        ix1 = lerp(n0, n1, sx);
-        value = lerp(ix0, ix1, sy);
-
-        return value;
-    }
-    
-    // Function to linearly interpolate between a0 and a1
-    // Weight w should be in the range [0.0, 1.0]
-    static float lerp(float a0, float a1, float w) {
-        return (1.0f - w) * a0 + w * a1;
-    }
-
-    // Computes the dot product of the distance and gradient vectors.
-    static float dotGridGradient(int ix, int iy, float x, float y) {
-        // Compute the distance vector
-        float dx = x - (float)ix;
-        float dy = y - (float)iy;
-
-        // Compute the dot-product
-        return (dx * PERLIN_VECTORS[iy][ix][0] + dy * PERLIN_VECTORS[iy][ix][1]);
     }
     
     @Override
