@@ -4,11 +4,15 @@ import java.awt.Color;
 import java.awt.Font;
 import java.awt.MouseInfo;
 import java.awt.Point;
+import java.awt.event.FocusEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
+import java.awt.event.MouseWheelEvent;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
+import java.awt.image.WritableRaster;
 import java.util.ArrayList;
+import java.util.Random;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 
@@ -53,6 +57,7 @@ public class Minecraft4k
     
     final static int BLOCK_AIR = 0;
     final static int BLOCK_GRASS = 1;
+    final static int BLOCK_DEFAULT_DIRT = 2;
     final static int BLOCK_STONE = 4;
     final static int BLOCK_BRICKS = 5;
     final static int BLOCK_WOOD = 7;
@@ -65,6 +70,7 @@ public class Minecraft4k
     
     static long deltaTime = 0;
     static Font font = Font.getFont("Arial");
+    static java.awt.Cursor hiddenCursor;
     
     public static void main(String[] args)
     {
@@ -84,41 +90,110 @@ public class Minecraft4k
             }
         }
         
-        java.util.Random localRand = new java.util.Random();
-        for(int x = 0; x < PERLIN_RES; x++) {
-            for(int y = 0; y < PERLIN_RES; y++) {
-                float vecX = localRand.nextFloat();
-                float vecY = localRand.nextFloat();
-                
-                // normalize
-                double len = Math.sqrt(vecX * vecX + vecY * vecY);
-                vecX /= len;
-                vecY /= len;
-                
-                PERLIN_VECTORS[x][y][0] = vecX;
-                PERLIN_VECTORS[x][y][1] = vecY;
-            }
-        }
-        
         updateScreenResolution();
         
         frame.addMouseListener(new MinecraftEventListener());
         frame.addMouseMotionListener(new MinecraftEventListener());
         frame.addKeyListener(new MinecraftEventListener());
+        frame.addFocusListener(new MinecraftEventListener());
+        frame.addMouseWheelListener(new MinecraftEventListener());
         
         frame.setSize(WINDOW_WIDTH, WINDOW_HEIGHT);
         frame.setResizable(false);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLocationRelativeTo(null); // center the window
         
+        hiddenCursor = frame.getToolkit().createCustomCursor(new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB), new java.awt.Point(), null);
+        
         // hide the cursor
-        frame.setCursor(frame.getToolkit().createCustomCursor(new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB), new java.awt.Point(), null));
+        frame.setCursor(hiddenCursor);
         
         // add Minecraft!
         frame.getContentPane().add(m4k);
         
         frame.setVisible(true);
         m4k.run();
+    }
+    
+    float perlin_octaves = 4; // default to medium smooth
+    float perlin_amp_falloff = 0.5f; // 50% reduction/octave
+    int PERLIN_YWRAPB = 4;
+    int PERLIN_YWRAP = 1 << PERLIN_YWRAPB;
+    int PERLIN_ZWRAPB = 8;
+    int PERLIN_ZWRAP = 1 << PERLIN_ZWRAPB;
+    
+    
+    float scaled_cosine(float i) {
+        return (float) (0.5f * (1.0f - Math.cos(i * Math.PI)));
+    }
+    
+    float noise(float x, float y) { // stolen from Processing
+        if (perlin == null) {
+            Random r = new Random(18295169L);
+            
+            perlin = new float[PERLIN_RES + 1];
+            for (int i = 0; i < PERLIN_RES + 1; i++) {
+                perlin[i] = r.nextFloat();
+            }
+        }
+
+        if (x < 0)
+            x = -x;
+        if (y < 0)
+            y = -y;
+        
+        int xi = (int) x;
+        int yi = (int) y;
+        
+        float xf = x - xi;
+        float yf = y - yi;
+        float rxf, ryf;
+
+        float r = 0;
+        float ampl = 0.5f;
+
+        float n1, n2, n3;
+
+        for (int i = 0; i < perlin_octaves; i++) {
+            int of = xi + (yi << PERLIN_YWRAPB);
+            
+            rxf = scaled_cosine(xf);
+            ryf = scaled_cosine(yf);
+            
+            n1 = perlin[of % PERLIN_RES];
+            n1 += rxf * (perlin[(of + 1) % PERLIN_RES] - n1);
+            n2 = perlin[(of + PERLIN_YWRAP) % PERLIN_RES];
+            n2 += rxf * (perlin[(of + PERLIN_YWRAP + 1) % PERLIN_RES] - n2);
+            n1 += ryf * (n2 - n1);
+
+            of += PERLIN_ZWRAP;
+            n2 = perlin[of % PERLIN_RES];
+            n2 += rxf * (perlin[(of + 1) % PERLIN_RES] - n2);
+            n3 = perlin[(of + PERLIN_YWRAP) % PERLIN_RES];
+            n3 += rxf * (perlin[(of + PERLIN_YWRAP + 1) % PERLIN_RES] - n3);
+            n2 += ryf * (n3 - n2);
+
+            n1 += scaled_cosine(0) * (n2 - n1);
+
+            r += n1 * ampl;
+            ampl *= perlin_amp_falloff;
+            xi <<= 1;
+            xf *= 2;
+            yi <<= 1;
+            yf *= 2;
+
+            if (xf >= 1.0) {
+                xi++;
+                xf--;
+            }
+            
+            if (yf >= 1.0) {
+                yi++;
+                yf--;
+            }
+        }
+        
+        return r;
     }
 
     static BufferedImage SCREEN = new BufferedImage(SCR_RES_X, SCR_RES_Y, 1);
@@ -155,33 +230,42 @@ public class Minecraft4k
     static float sinYaw, sinPitch;
     static float cosYaw, cosPitch;
     
-    final static float[][][] PERLIN_VECTORS = new float[PERLIN_RES][PERLIN_RES][2];
+    static float[] perlin = null;
     
     static int[] screenBuffer = ((DataBufferInt) SCREEN.getRaster().getDataBuffer()).getData();
     static byte[][][] world = new byte[WORLD_SIZE][WORLD_HEIGHT][WORLD_SIZE];
-    static int[] textureAtlas = new int[16 * 3 * TEXTURE_RES * TEXTURE_RES];
     
-    boolean classic = false;
+    static BufferedImage textureAtlasImage = new BufferedImage(TEXTURE_RES, 3 * 16 * TEXTURE_RES, BufferedImage.TYPE_INT_ARGB);
+    static int[] textureAtlas = ((DataBufferInt) textureAtlasImage.getRaster().getDataBuffer()).getData();
+    
+    static byte[] hotbar = new byte[] { BLOCK_GRASS, BLOCK_DEFAULT_DIRT, BLOCK_STONE, BLOCK_BRICKS, BLOCK_WOOD, BLOCK_LEAVES };
+    static int heldBlockIndex = 0;
+    
+    boolean classic = true;
     
     public void run() {
         try {
-            java.util.Random rand = new java.util.Random(18295169L);
+            Random rand = new Random(18295169L);
             
-            // fill world with random blocks
-            for (int x = 0; x < WORLD_SIZE; x++) {
+            // generate world
+            for (int x = WORLD_SIZE; x >= 0; x--) {
                 for(int y = 0; y < WORLD_HEIGHT; y++) {
                     for(int z = 0; z < WORLD_SIZE; z++) {
                         byte block;
                         
+                        float maxTerrainHeight = WORLD_HEIGHT / 2f;
+                        
                         if(classic) {
-                            if(y > 32 + rand.nextInt(8))
+                            if(y > maxTerrainHeight + rand.nextInt(8))
                                 block = (byte) (rand.nextInt(8) + 1);
                             else
                                 block = BLOCK_AIR;
                         } else {
-                            int terrainHeight = (int) ((float) (WORLD_HEIGHT / 2) + perlin((float) (x / (float) (WORLD_HEIGHT / 2)), (float) (z / (float) (WORLD_HEIGHT / 2))) * 15.0f);
+                            float halfWorldSize = WORLD_SIZE / 2f;
                             
-                            if(y > WORLD_HEIGHT * 0.625f)
+                            int terrainHeight = Math.round(maxTerrainHeight + noise(x / halfWorldSize, z / halfWorldSize) * 10.0f);
+                            
+                            if(y > WORLD_HEIGHT * 0.75f)
                                 block = BLOCK_STONE;
                             else if (y > terrainHeight + 1)
                                 block = 2; // dirt
@@ -190,7 +274,10 @@ public class Minecraft4k
                             else
                                 block = BLOCK_AIR;
                         }
-
+                        
+                        if(x == WORLD_SIZE)
+                            continue;
+                        
                         world[x][y][z] = block;
                     }
                 }
@@ -208,65 +295,85 @@ public class Minecraft4k
                     for (int x = 0; x < TEXTURE_RES; x++) {
                         // gets executed per pixel/texel
                         
-                        if (blockType != BLOCK_STONE || rand.nextInt(3) == 0) // if the block type is stone, update the noise value less often to get a streched out look
-                            gsd_tempA = 0xFF - rand.nextInt(0x60);
+                        int gsd_final;
+                        int tint;
                         
-                        int tint = 0x966C4A; // brown (dirt)
-                        switch(blockType)
-                        {
-                            case BLOCK_STONE:
-                                tint = 0x7F7F7F; // grey
-                                break;
-                            case BLOCK_GRASS:
-                                if (y < (x * x * 3 + x * 81 >> 2 & 0x3) + (float) (TEXTURE_RES * 1.125f)) // grass + grass edge
-                                    tint = 0x6AAA40; // green
-                                else if (y < (x * x * 3 + x * 81 >> 2 & 0x3) + (float) (TEXTURE_RES * 1.1875f)) // grass edge shadow
-                                    gsd_tempA = gsd_tempA * 2 / 3;
-                                break;
-                            case BLOCK_WOOD:
-                                tint = 0x675231; // brown (bark)
-                                if(!(y >= TEXTURE_RES && y < TEXTURE_RES * 2) && // avoid this block when we are on second row
-                                        x > 0 && x < TEXTURE_RES - 1 &&
-                                        ((y > 0 && y < TEXTURE_RES - 1) || (y > TEXTURE_RES * 2 && y < TEXTURE_RES * 3 - 1))) { // wood side area
-                                    tint = 0xBC9862; // light brown
+                        if(classic) {
+                            if (blockType != BLOCK_STONE || rand.nextInt(3) == 0) // if the block type is stone, update the noise value less often to get a streched out look
+                                gsd_tempA = 0xFF - rand.nextInt(0x60);
 
-                                    // the following code repurposes 2 gsd variables making it a bit hard to read
-                                    // but in short it gets the absulte distance from the tile's center in x and y direction 
-                                    // finds the max of it
-                                    // uses that to make the gray scale detail darker if the current pixel is part of an annual ring
-                                    // and adds some noice as a finishig touch
-                                    int woodCenter = TEXTURE_RES / 2 - 1;
-                                    int gsd_final = x - woodCenter;
-                                    int gsd_tempB = (y % TEXTURE_RES) - woodCenter;
+                            tint = 0x966C4A; // brown (dirt)
+                            switch(blockType)
+                            {
+                                case BLOCK_STONE:
+                                    tint = 0x7F7F7F; // grey
+                                    break;
+                                case BLOCK_GRASS:
+                                    if (y < (x * x * 3 + x * 81 >> 2 & 0x3) + (float) (TEXTURE_RES * 1.125f)) // grass + grass edge
+                                        tint = 0x6AAA40; // green
+                                    else if (y < (x * x * 3 + x * 81 >> 2 & 0x3) + (float) (TEXTURE_RES * 1.1875f)) // grass edge shadow
+                                        gsd_tempA = gsd_tempA * 2 / 3;
+                                    break;
+                                case BLOCK_WOOD:
+                                    tint = 0x675231; // brown (bark)
+                                    if(!(y >= TEXTURE_RES && y < TEXTURE_RES * 2) && // avoid this block when we are on second row
+                                            x > 0 && x < TEXTURE_RES - 1 &&
+                                            ((y > 0 && y < TEXTURE_RES - 1) || (y > TEXTURE_RES * 2 && y < TEXTURE_RES * 3 - 1))) { // wood side area
+                                        tint = 0xBC9862; // light brown
 
-                                    if (gsd_final < 0)
-                                        gsd_final = 1 - gsd_final;
+                                        // the following code repurposes 2 gsd variables making it a bit hard to read
+                                        // but in short it gets the absulte distance from the tile's center in x and y direction 
+                                        // finds the max of it
+                                        // uses that to make the gray scale detail darker if the current pixel is part of an annual ring
+                                        // and adds some noice as a finishig touch
+                                        int woodCenter = TEXTURE_RES / 2 - 1;
+                                        int gsd_wood = x - woodCenter;
+                                        int gsd_tempB = (y % TEXTURE_RES) - woodCenter;
 
-                                    if (gsd_tempB < 0)
-                                        gsd_tempB = 1 - gsd_tempB;
+                                        if (gsd_wood < 0)
+                                            gsd_wood = 1 - gsd_wood;
 
-                                    if (gsd_tempB > gsd_final)
-                                        gsd_final = gsd_tempB;
+                                        if (gsd_tempB < 0)
+                                            gsd_tempB = 1 - gsd_tempB;
 
-                                    gsd_tempA = 196 - rand.nextInt(32) + gsd_final % 3 * 32;
-                                } else if (rand.nextInt(2) == 0) {
-                                    // make the gsd 50% brighter on random pixels of the bark
-                                    // and 50% darker if x happens to be odd
-                                    gsd_tempA = gsd_tempA * (150 - (x & 1) * 100) / 100;
+                                        if (gsd_tempB > gsd_wood)
+                                            gsd_wood = gsd_tempB;
+
+                                        gsd_tempA = 196 - rand.nextInt(32) + gsd_wood % 3 * 32;
+                                    } else if (rand.nextInt(2) == 0) {
+                                        // make the gsd 50% brighter on random pixels of the bark
+                                        // and 50% darker if x happens to be odd
+                                        gsd_tempA = gsd_tempA * (150 - (x & 1) * 100) / 100;
+                                    }
+                                    break;
+                                case BLOCK_BRICKS:
+                                    tint = 0xB53A15; // red
+                                    if ((x + y / 4 * 4) % 8 == 0 || y % 4 == 0) // gap between bricks
+                                        tint = 0xBCAFA5; // reddish light grey
+                                    break;
+                            }
+
+                            gsd_final = gsd_tempA;
+                            if (y >= TEXTURE_RES * 2) // bottom side of the block
+                                gsd_final /= 2; // has to be darker
+
+                            if (blockType == BLOCK_LEAVES) {
+                                tint = 0x50D937; // green
+                                if (rand.nextInt(2) == 0) {
+                                    tint = 0;
+                                    gsd_final = 0xFF;
                                 }
                             }
                         } else {
-                            float pNoise = perlin(x * 15, y* 15);
+                            float pNoise = noise(x, y);
 
                             tint = 0x966C4A; // brown (dirt)
                             
                             gsd_tempA = (int) ((1 - pNoise * 0.5f) * 255);
-                            
-                            System.out.println(pNoise);
                             switch(blockType) {
                                 case BLOCK_STONE:
                                     tint = 0x7F7F7F; // grey
-                                    gsd_tempA = (int)((0.75 + Math.round(Math.abs(perlin(x * 0.5f, y * 2))) * 0.125f) * 255);
+                                    gsd_tempA = (int)((0.75 + Math.round(Math.abs(noise(x * 0.5f, y * 2))) * 0.125f) * 255);
                                     break;
                                 case BLOCK_GRASS:
                                     if(y < (((x * x * 3 + x * 81) / 2) % 4) + 18) // grass + grass edge
@@ -287,12 +394,12 @@ public class Minecraft4k
 
                                         gsd_tempA = 196 - (int)rand.nextInt(32) + gsd_wood % 3 * 32;
                                       } else if(dx>dy){
-                                        gsd_tempA = (int)(perlin(y, x * .25f) * 255 * (180 - Math.sin(x * Math.PI) * 50) / 100);
+                                        gsd_tempA = (int)(noise(y, x * .25f) * 255 * (180 - Math.sin(x * Math.PI) * 50) / 100);
                                       } else {
-                                        gsd_tempA = (int)(perlin(x, y * .25f) * 255 * (180 - Math.sin(x * Math.PI) * 50) / 100);
+                                        gsd_tempA = (int)(noise(x, y * .25f) * 255 * (180 - Math.sin(x * Math.PI) * 50) / 100);
                                       }
                                     } else {
-                                        gsd_tempA = (int)(perlin(x, y * .25f) * 255 * (180 - Math.sin(x * Math.PI) * 50) / 100);
+                                        gsd_tempA = (int)(noise(x, y * .25f) * 255 * (180 - Math.sin(x * Math.PI) * 50) / 100);
                                     }
                                     break;
                                 case BLOCK_BRICKS:
@@ -312,8 +419,8 @@ public class Minecraft4k
                             }
 
                             gsd_final = gsd_tempA;
-                            if (y >= 32) //bottom side of the block
-                                gsd_final /= 2; //has to be darker
+                            if (y >= 32) // bottom side of the block
+                                gsd_final /= 2; // make it darker, "sading"
                             
                             if(blockType == BLOCK_LEAVES)
                             {
@@ -340,7 +447,8 @@ public class Minecraft4k
                         }
                         
                         // multiply tint by the grayscale detail
-                        int col = (tint >> 16 & 0xFF) * gsd_final / 0xFF << 16 |
+                        int col = ((tint & 0xFFFFFF) == 0 ? 0 : 0xFF) << 24 |
+                                  (tint >> 16 & 0xFF) * gsd_final / 0xFF << 16 |
                                   (tint >>  8 & 0xFF) * gsd_final / 0xFF << 8 | 
                                   (tint       & 0xFF) * gsd_final / 0xFF;
 
@@ -407,6 +515,9 @@ public class Minecraft4k
                             int colliderBlockY = (int)(newPlayerY + ((colliderIndex >> 2) - 1) * 0.8F + 0.65F) - WORLD_HEIGHT;
                             int colliderBlockZ = (int)(newPlayerZ + (colliderIndex >> 1 & 1) * 0.6F - 0.3F) - WORLD_SIZE;
                             
+                            if(colliderBlockY < 0)
+                                continue;
+                            
                             // check collision with world bounds and world blocks
                             if (colliderBlockX < 0 || colliderBlockZ < 0
                                     || colliderBlockX >= WORLD_SIZE || colliderBlockY >= WORLD_HEIGHT || colliderBlockZ >= WORLD_SIZE
@@ -433,24 +544,27 @@ public class Minecraft4k
                     }
                 }
                 
-                if(hoveredBlockPosX > -1) {
+                if(hoveredBlockPosX > -1) { // all axes will be -1 if nothing hovered
                     // break block
                     if (input[MOUSE_LEFT] == true) {
                         world[hoveredBlockPosX][hoveredBlockPosY][hoveredBlockPosZ] = BLOCK_AIR;
                         input[MOUSE_LEFT] = false;
                     }
-
-                    // place block
-                    if (input[MOUSE_RIGHT] == true) {
-                        world[placeBlockPosX][placeBlockPosY][placeBlockPosZ] = BLOCK_GRASS;
-                        input[MOUSE_RIGHT] = false;
+                    
+                    
+                    if(placeBlockPosY > 0) {
+                        // place block
+                        if (input[MOUSE_RIGHT] == true) {
+                            world[placeBlockPosX][placeBlockPosY][placeBlockPosZ] = hotbar[heldBlockIndex];
+                            input[MOUSE_RIGHT] = false;
+                        }
                     }
                 }
                 
-                for (int i8 = 0; i8 < 12; i8++) {
-                    int magicX = (int)(playerX + (i8 >> 0 & 1) * 0.6F - 0.3F) - WORLD_SIZE;
-                    int magicY = (int)(playerY + ((i8 >> 2) - 1) * 0.8F + 0.65F) - WORLD_HEIGHT;
-                    int magicZ = (int)(playerZ + (i8 >> 1 & 1) * 0.6F - 0.3F) - WORLD_SIZE;
+                for (int colliderIndex = 0; colliderIndex < 12; colliderIndex++) {
+                    int magicX = (int)(playerX + ( colliderIndex >> 0  & 1) * 0.6F - 0.3F ) - WORLD_SIZE;
+                    int magicY = (int)(playerY + ((colliderIndex >> 2) - 1) * 0.8F + 0.65F) - WORLD_HEIGHT;
+                    int magicZ = (int)(playerZ + ( colliderIndex >> 1  & 1) * 0.6F - 0.3F ) - WORLD_SIZE;
                     
                     // check if hovered block is within world boundaries
                     if (magicX >= 0 && magicY >= 0 && magicZ >= 0 && magicX < WORLD_SIZE && magicY < WORLD_HEIGHT && magicZ < WORLD_SIZE)
@@ -496,7 +610,8 @@ public class Minecraft4k
                 if(System.currentTimeMillis() - lastMouseMove > 25)
                     mouseDelta = new Point();
                 
-                Thread.sleep(2);
+                if(deltaTime < 14)
+                    Thread.sleep(16 - deltaTime);
                 
                 repaint();
                 
@@ -535,7 +650,6 @@ public class Minecraft4k
             frameCenter.y = frame.getHeight() / 2;
             javax.swing.SwingUtilities.convertPointToScreen(frameCenter, frame);
             
-            //recentering = true;
             robot.mouseMove(frameCenter.x, frameCenter.y);
         }
     }
@@ -547,7 +661,14 @@ public class Minecraft4k
         
         g.drawImage(crosshair, WINDOW_WIDTH / 2 - CROSS_SIZE / 2, WINDOW_HEIGHT / 2 - CROSS_SIZE / 2, null);
         
-        if(deltaTime > 16)
+        g.drawImage(textureAtlasImage,
+                frame.getContentPane().getWidth() - 64, frame.getContentPane().getHeight() - 64, //draw bounds min
+                frame.getContentPane().getWidth(), frame.getContentPane().getHeight(), //draw bounds max
+                0, TEXTURE_RES * (hotbar[heldBlockIndex] * 3 + 1), // sample bounds min
+                TEXTURE_RES, TEXTURE_RES * (hotbar[heldBlockIndex] * 3 + 2), // sample bounds max
+                null);
+        
+        if(deltaTime > 16) // 16ms = 60fps
             g.setColor(Color.red);
         else
             g.setColor(Color.white);
@@ -623,7 +744,7 @@ public class Minecraft4k
     }
 }
 
-class MinecraftEventListener extends java.awt.event.KeyAdapter implements java.awt.event.MouseListener, java.awt.event.MouseMotionListener
+class MinecraftEventListener extends java.awt.event.KeyAdapter implements java.awt.event.MouseListener, java.awt.event.MouseMotionListener, java.awt.event.FocusListener, java.awt.event.MouseWheelListener
 {
     @Override
     public void keyPressed(KeyEvent e) {
@@ -672,12 +793,14 @@ class MinecraftEventListener extends java.awt.event.KeyAdapter implements java.a
     
     @Override
     public void mouseEntered(MouseEvent e) {
-        hovered = ((JFrame) e.getSource()).isFocused();
+        if(frame.isFocused())
+            hovered = true;
     }
     
     @Override
     public void mouseExited(MouseEvent e) {
-        hovered = ((JFrame) e.getSource()).isFocused();
+        if(frame.isFocused())
+            hovered = false;
     }
 
     @Override
@@ -687,7 +810,35 @@ class MinecraftEventListener extends java.awt.event.KeyAdapter implements java.a
     public void mouseDragged(MouseEvent e) {}
 
     @Override
-    public void mouseMoved(MouseEvent e) {}
+    public void mouseMoved(MouseEvent e) {
+        if(frame.isFocused() && frame.getBounds().contains(e.getPoint()))
+            hovered = true;
+    }
+
+    @Override
+    public void focusGained(FocusEvent e) {
+        frame.setCursor(Minecraft4k.hiddenCursor);
+    }
+
+    @Override
+    public void focusLost(FocusEvent e) {
+        hovered = false;
+        frame.setCursor(java.awt.Cursor.getDefaultCursor());
+    }
+
+    @Override
+    public void mouseWheelMoved(MouseWheelEvent e) {
+        if(e.getScrollAmount() < 0)
+            heldBlockIndex--;
+        else
+            heldBlockIndex++;
+        
+        if(heldBlockIndex < 0)
+            heldBlockIndex = hotbar.length - 1;
+        
+        if(heldBlockIndex >= hotbar.length)
+            heldBlockIndex = 0;
+    }
 }
 
 class RenderThread implements Runnable {
@@ -721,7 +872,7 @@ class RenderThread implements Runnable {
                 float rayDirZ = temp * cosYaw - xDistSmall * sinYaw;
 
                 int pixelColor = 0;
-                int fogMultipliter = 0x00;
+                int fogMultiplier = 0x00;
                 double furthestHit = RENDER_DIST;
                 float playerReach = 5.0F;
 
@@ -771,13 +922,13 @@ class RenderThread implements Runnable {
                     float rayZ = playerZ + rayDeltaZ * floatComponent;
 
                     if (delta < 0.0F) {
-                        if (axis == 0)
+                        if (axis == AXIS_X)
                             rayX--;
 
-                        if (axis == 1)
+                        if (axis == AXIS_Y)
                             rayY--;
 
-                        if (axis == 2)
+                        if (axis == AXIS_Z)
                             rayZ--;
                     }
 
@@ -786,10 +937,10 @@ class RenderThread implements Runnable {
                         int blockHitY = (int) rayY - WORLD_HEIGHT;
                         int blockHitZ = (int) rayZ - WORLD_SIZE;
 
-                        if (blockHitX < 0 || blockHitY < 0 || blockHitZ < 0 || blockHitX >= WORLD_SIZE || blockHitY >= WORLD_HEIGHT || blockHitZ >= WORLD_SIZE)
+                        if (blockHitX < 0 || blockHitY < -2 || blockHitZ < 0 || blockHitX >= WORLD_SIZE || blockHitY >= WORLD_HEIGHT || blockHitZ >= WORLD_SIZE)
                             break;
-
-                        int blockHitID = world[blockHitX][blockHitY][blockHitZ];
+                        
+                        int blockHitID = blockHitY < 0 ? BLOCK_AIR : world[blockHitX][blockHitY][blockHitZ];
 
                         if (blockHitID != BLOCK_AIR) {
                             int texFetchX = (int)((rayX + rayZ) * TEXTURE_RES) % TEXTURE_RES;
@@ -800,7 +951,7 @@ class RenderThread implements Runnable {
                                 texFetchY = (int)(rayZ * TEXTURE_RES) % TEXTURE_RES;
 
                                 // "lighting"
-                                if (rayDeltaY < 0.0F)
+                                if (rayDeltaY < 0.0F) // looking at the underside of a block
                                     texFetchY += TEXTURE_RES * 2;
                             }
 
@@ -827,23 +978,23 @@ class RenderThread implements Runnable {
 
                                 switch(axis) {
                                     case AXIS_X:
-                                        placeBlockPosX = 1 * direction;
+                                        placeBlockPosX = direction;
                                         break;
                                     case AXIS_Y:
-                                        placeBlockPosY = 1 * direction;
+                                        placeBlockPosY = direction;
                                         break;
                                     case AXIS_Z:
-                                        placeBlockPosZ = 1 * direction;
+                                        placeBlockPosZ = direction;
                                 }
                                 
                                 
                                 playerReach = rayTravelDist;
                             }
 
-                            if (textureColor > 0) {
+                            if ((textureColor & 0xFFFFFF) > 0) {
                                 pixelColor = textureColor;
-                                fogMultipliter = 0xFF - (int)(rayTravelDist / RENDER_DIST * 0xFF);
-                                fogMultipliter = fogMultipliter * (0xFF - (axis + 2) % 3 * 50) / 0xFF;
+                                fogMultiplier = 0xFF - (int)(rayTravelDist / RENDER_DIST * 0xFF);
+                                fogMultiplier = fogMultiplier * (0xFF - (axis + 2) % 3 * 50) / 0xFF;
                                 furthestHit = rayTravelDist;
                             }
                         }
@@ -856,9 +1007,9 @@ class RenderThread implements Runnable {
                     }
                 }
 
-                int pixelR = (pixelColor >> 16 & 0xFF) * fogMultipliter / 0xFF;
-                int pixelG = (pixelColor >> 8  & 0xFF) * fogMultipliter / 0xFF;
-                int pixelB = (pixelColor       & 0xFF) * fogMultipliter / 0xFF;
+                int pixelR = (pixelColor >> 16 & 0xFF) * fogMultiplier / 0xFF;
+                int pixelG = (pixelColor >> 8  & 0xFF) * fogMultiplier / 0xFF;
+                int pixelB = (pixelColor       & 0xFF) * fogMultiplier / 0xFF;
 
                 buffer[screenIndex] = pixelR << 16 | pixelG << 8 | pixelB;
             }
