@@ -1,7 +1,9 @@
 package minecraft4k;
 
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Font;
+import java.awt.Graphics2D;
 import java.awt.MouseInfo;
 import java.awt.Point;
 import java.awt.event.FocusEvent;
@@ -447,9 +449,9 @@ public class Minecraft4k
                         }
                         
                         // multiply tint by the grayscale detail
-                        int col = ((tint & 0xFFFFFF) == 0 ? 0 : 0xFF) << 24 |
+                        int col = ((tint & 0xFFFFFF) == 0 ? 0 : 0xFF)    << 24 |
                                   (tint >> 16 & 0xFF) * gsd_final / 0xFF << 16 |
-                                  (tint >>  8 & 0xFF) * gsd_final / 0xFF << 8 | 
+                                  (tint >>  8 & 0xFF) * gsd_final / 0xFF <<  8 | 
                                   (tint       & 0xFF) * gsd_final / 0xFF;
 
                         // write pixel to the texture atlas
@@ -657,24 +659,56 @@ public class Minecraft4k
     @Override
     public void paint(java.awt.Graphics g)
     {
-        g.drawImage(SCREEN, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, null);
+        Graphics2D g2d = (Graphics2D) g;
         
-        g.drawImage(crosshair, WINDOW_WIDTH / 2 - CROSS_SIZE / 2, WINDOW_HEIGHT / 2 - CROSS_SIZE / 2, null);
+        g2d.drawImage(SCREEN, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, null);
         
-        g.drawImage(textureAtlasImage,
-                frame.getContentPane().getWidth() - 64, frame.getContentPane().getHeight() - 64, //draw bounds min
-                frame.getContentPane().getWidth(), frame.getContentPane().getHeight(), //draw bounds max
-                0, TEXTURE_RES * (hotbar[heldBlockIndex] * 3 + 1), // sample bounds min
-                TEXTURE_RES, TEXTURE_RES * (hotbar[heldBlockIndex] * 3 + 2), // sample bounds max
-                null);
+        g2d.drawImage(crosshair, WINDOW_WIDTH / 2 - CROSS_SIZE / 2, WINDOW_HEIGHT / 2 - CROSS_SIZE / 2, null);
         
-        if(deltaTime > 16) // 16ms = 60fps
-            g.setColor(Color.red);
+        g2d.setColor(Color.gray.darker());
+        g2d.setStroke(new BasicStroke(4));
+        
+        final int hotbarItemSize = 64;
+        final int padding = 2;
+        final int hotbarX = frame.getContentPane().getWidth() / 2 - (hotbarItemSize * hotbar.length) / 2;
+        final int hotbarY = frame.getContentPane().getHeight() - hotbarItemSize - 10;
+        
+        // draw transparent background
+        g2d.setColor(new Color(0x33, 0x33, 0x33, 0x7F).darker());
+        g2d.fillRect(hotbarX - 2, hotbarY - 2, hotbarItemSize * hotbar.length + 4, hotbarItemSize + 4);
+        
+        g2d.setColor(Color.gray.darker());
+        g2d.drawRect(hotbarX - 2, hotbarY - 2, hotbarItemSize * hotbar.length + 4, hotbarItemSize + 4);
+        
+        for(int i = 0; i < hotbar.length; i++)
+        {
+            g2d.drawImage(textureAtlasImage,
+                    hotbarX + i * hotbarItemSize + padding, hotbarY + padding, //draw bounds min
+                    hotbarX + i * hotbarItemSize + hotbarItemSize - padding, hotbarY + hotbarItemSize - padding, //draw bounds max
+                    0, TEXTURE_RES * (hotbar[i] * 3 + 1), // sample bounds min
+                    TEXTURE_RES, TEXTURE_RES * (hotbar[i] * 3 + 2), // sample bounds max
+                    null);
+        }
+        
+        g2d.setColor(Color.white);
+        g2d.setStroke(new BasicStroke(5));
+        
+        g2d.drawRect(hotbarX + heldBlockIndex * hotbarItemSize, hotbarY, hotbarItemSize, hotbarItemSize);
+            
+        if(deltaTime > 16 || deltaTime == 0) // 16ms = 60fps
+            g2d.setColor(Color.red);
         else
-            g.setColor(Color.white);
+            g2d.setColor(Color.white);
         
-        g.setFont(font);
-        g.drawString("" + deltaTime, 0, 10);
+        g2d.setFont(font);
+        
+        String str;
+        if(deltaTime == 0)
+            str = "Houston, we have a problem!";
+        else
+            str = "" + 1000 / deltaTime + " fps, 0 chunk updates";
+        
+        g2d.drawString(str, 0, 10);
     }
     
     public static void updateScreenResolution()
@@ -828,7 +862,9 @@ class MinecraftEventListener extends java.awt.event.KeyAdapter implements java.a
 
     @Override
     public void mouseWheelMoved(MouseWheelEvent e) {
-        if(e.getScrollAmount() < 0)
+        System.out.println(e.getUnitsToScroll());
+        
+        if(e.getUnitsToScroll() < 0)
             heldBlockIndex--;
         else
             heldBlockIndex++;
