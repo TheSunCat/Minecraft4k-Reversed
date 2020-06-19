@@ -243,44 +243,72 @@ public class Minecraft4k
     static byte[] hotbar = new byte[] { BLOCK_GRASS, BLOCK_DEFAULT_DIRT, BLOCK_STONE, BLOCK_BRICKS, BLOCK_WOOD, BLOCK_LEAVES };
     static int heldBlockIndex = 0;
     
-    boolean classic = true;
+    boolean classic = false;
     
     public void run() {
         try {
             Random rand = new Random(18295169L);
             
             // generate world
-            for (int x = WORLD_SIZE; x >= 0; x--) {
-                for(int y = 0; y < WORLD_HEIGHT; y++) {
-                    for(int z = 0; z < WORLD_SIZE; z++) {
-                        byte block;
-                        
-                        float maxTerrainHeight = WORLD_HEIGHT / 2f;
-                        
-                        if(classic) {
+            
+            float maxTerrainHeight = WORLD_HEIGHT / 2f;
+            if(classic) {
+                for (int x = WORLD_SIZE; x >= 0; x--) {
+                    for(int y = 0; y < WORLD_HEIGHT; y++) {
+                        for(int z = 0; z < WORLD_SIZE; z++) {
+                            byte block;
+
                             if(y > maxTerrainHeight + rand.nextInt(8))
                                 block = (byte) (rand.nextInt(8) + 1);
                             else
                                 block = BLOCK_AIR;
-                        } else {
-                            float halfWorldSize = WORLD_SIZE / 2f;
+
+                            if(x == WORLD_SIZE)
+                                continue;
+
+                            world[x][y][z] = block;
+                        }
+                    }
+                }
+            } else {
+                final int stoneDepth = 5;
+                
+                for (int x = WORLD_SIZE; x >= 0; x--) {
+                    for(int z = 0; z < WORLD_SIZE; z++) {
+                        float halfWorldSize = WORLD_SIZE / 2f;
                             
-                            int terrainHeight = Math.round(maxTerrainHeight + noise(x / halfWorldSize, z / halfWorldSize) * 10.0f);
+                        int terrainHeight = Math.round(maxTerrainHeight + noise(x / halfWorldSize, z / halfWorldSize) * 10.0f);
+
+                        if(x == 0 && z == 0) // spawn tree
+                        {
+                            int treeHeight = 6 + rand.nextInt(2);
                             
-                            if(y > WORLD_HEIGHT * 0.75f)
+                            for(int y = terrainHeight; y > terrainHeight - treeHeight; y--)
+                            {
+                                byte block = BLOCK_WOOD;
+                                
+                                world[x][y][z] = block;
+                            }
+                        }
+                        
+                        for(int y = terrainHeight; y < WORLD_HEIGHT; y++)
+                        {
+                            byte block;
+                            
+                            if(y > terrainHeight + stoneDepth)
                                 block = BLOCK_STONE;
-                            else if (y > terrainHeight + 1)
-                                block = 2; // dirt
                             else if (y > terrainHeight)
+                                block = 2; // dirt
+                            else if (y == terrainHeight)
                                 block = BLOCK_GRASS;
                             else
                                 block = BLOCK_AIR;
+                            
+                            if(x == WORLD_SIZE)
+                                continue;
+
+                            world[x][y][z] = block;
                         }
-                        
-                        if(x == WORLD_SIZE)
-                            continue;
-                        
-                        world[x][y][z] = block;
                     }
                 }
             }
@@ -709,6 +737,10 @@ public class Minecraft4k
             str = "" + 1000 / deltaTime + " fps, 0 chunk updates";
         
         g2d.drawString(str, 0, 10);
+        
+        g2d.drawString("X: " + (playerX - 64), 0, 20);
+        g2d.drawString("Y: " + (playerY - 64), 0, 30);
+        g2d.drawString("Z: " + (playerZ - 64), 0, 40);
     }
     
     public static void updateScreenResolution()
@@ -862,8 +894,6 @@ class MinecraftEventListener extends java.awt.event.KeyAdapter implements java.a
 
     @Override
     public void mouseWheelMoved(MouseWheelEvent e) {
-        System.out.println(e.getUnitsToScroll());
-        
         if(e.getUnitsToScroll() < 0)
             heldBlockIndex--;
         else
