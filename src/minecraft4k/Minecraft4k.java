@@ -12,7 +12,6 @@ import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
-import java.awt.image.WritableRaster;
 import java.util.ArrayList;
 import java.util.Random;
 import javax.swing.JFrame;
@@ -23,6 +22,8 @@ import static minecraft4k.Minecraft4k.*;
 public class Minecraft4k
     extends JPanel
 {
+    static boolean classic = true;
+    
     static JFrame frame;
     
     static boolean[] input = new boolean[32767];
@@ -40,7 +41,7 @@ public class Minecraft4k
     static int SCR_RES_X = (int) (107 * Math.pow(2, SCR_DETAIL));
     static int SCR_RES_Y = (int) (60 * Math.pow(2, SCR_DETAIL));
     
-    final static float RENDER_DIST = 20.0f;
+    final static float RENDER_DIST = classic ? 20.0f : 80.0f;
     
     final static int THREADS = Runtime.getRuntime().availableProcessors();
     static ArrayList<RenderThread> threadList = new ArrayList();
@@ -53,17 +54,21 @@ public class Minecraft4k
     final static int WORLD_SIZE = 64;
     final static int WORLD_HEIGHT = 64;
     
+    static float lightDirectionX = 0.866025404f;
+    static float lightDirectionY = -0.866025404f;
+    static float lightDirectionZ = 0.866025404f;
+    
     final static int AXIS_X = 0;
     final static int AXIS_Y = 1;
     final static int AXIS_Z = 2;
     
-    final static int BLOCK_AIR = 0;
-    final static int BLOCK_GRASS = 1;
-    final static int BLOCK_DEFAULT_DIRT = 2;
-    final static int BLOCK_STONE = 4;
-    final static int BLOCK_BRICKS = 5;
-    final static int BLOCK_WOOD = 7;
-    final static int BLOCK_LEAVES = 8;
+    final static byte BLOCK_AIR = 0;
+    final static byte BLOCK_GRASS = 1;
+    final static byte BLOCK_DEFAULT_DIRT = 2;
+    final static byte BLOCK_STONE = 4;
+    final static byte BLOCK_BRICKS = 5;
+    final static byte BLOCK_WOOD = 7;
+    final static byte BLOCK_LEAVES = 8;
     
     final static int PERLIN_RES = 1024;
     
@@ -243,8 +248,6 @@ public class Minecraft4k
     static byte[] hotbar = new byte[] { BLOCK_GRASS, BLOCK_DEFAULT_DIRT, BLOCK_STONE, BLOCK_BRICKS, BLOCK_WOOD, BLOCK_LEAVES };
     static int heldBlockIndex = 0;
     
-    boolean classic = false;
-    
     public void run() {
         try {
             Random rand = new Random(18295169L);
@@ -271,25 +274,13 @@ public class Minecraft4k
                     }
                 }
             } else {
+                float halfWorldSize = WORLD_SIZE / 2f;
+                
                 final int stoneDepth = 5;
                 
-                for (int x = WORLD_SIZE; x >= 0; x--) {
-                    for(int z = 0; z < WORLD_SIZE; z++) {
-                        float halfWorldSize = WORLD_SIZE / 2f;
-                            
+                for (int x = 0; x < WORLD_SIZE; x++) {
+                    for(int z = 0; z < WORLD_SIZE; z++) {    
                         int terrainHeight = Math.round(maxTerrainHeight + noise(x / halfWorldSize, z / halfWorldSize) * 10.0f);
-
-                        if(x == 0 && z == 0) // spawn tree
-                        {
-                            int treeHeight = 6 + rand.nextInt(2);
-                            
-                            for(int y = terrainHeight; y > terrainHeight - treeHeight; y--)
-                            {
-                                byte block = BLOCK_WOOD;
-                                
-                                world[x][y][z] = block;
-                            }
-                        }
                         
                         for(int y = terrainHeight; y < WORLD_HEIGHT; y++)
                         {
@@ -299,17 +290,86 @@ public class Minecraft4k
                                 block = BLOCK_STONE;
                             else if (y > terrainHeight)
                                 block = 2; // dirt
-                            else if (y == terrainHeight)
+                            else // (y == terrainHeight)
                                 block = BLOCK_GRASS;
-                            else
-                                block = BLOCK_AIR;
-                            
-                            if(x == WORLD_SIZE)
-                                continue;
 
                             world[x][y][z] = block;
                         }
                     }
+                }
+                
+                // populate trees
+                for (int x = 4; x < WORLD_SIZE - 4; x += 8) {
+                    for(int z = 4; z < WORLD_SIZE - 4; z += 8) {
+                        if(rand.nextInt(4) == 0) // spawn tree
+                        {
+                            int treeX = x + (rand.nextInt(4) - 2);
+                            int treeZ = z + (rand.nextInt(4) - 2);
+                            
+                            final int terrainHeight = Math.round(maxTerrainHeight + noise(treeX / halfWorldSize, treeZ / halfWorldSize) * 10.0f) - 1;
+                            
+                            int treeHeight = 4 + rand.nextInt(2); // min 4 max 5
+                            
+                            for(int y = terrainHeight; y >= terrainHeight - treeHeight; y--)
+                            {
+                                byte block = BLOCK_WOOD;
+                                
+                                world[treeX][y][treeZ] = block;
+                            }
+                            
+                            // foliage
+                            fillBox(BLOCK_LEAVES, treeX - 2, terrainHeight - treeHeight + 1, treeZ - 2, treeX + 3, terrainHeight - treeHeight + 3, treeZ + 3, false);
+                            
+                            // crown
+                            fillBox(BLOCK_LEAVES, treeX - 1, terrainHeight - treeHeight - 1, treeZ - 1, treeX + 2, terrainHeight - treeHeight + 1, treeZ + 2, false);
+                            
+                            
+                            int[] foliageXList = { treeX - 2, treeX - 2, treeX + 2, treeX + 2 };
+                            int[] foliageZList = { treeZ - 2, treeZ + 2, treeZ + 2, treeZ - 2 };
+                            
+                            int[] crownXList = { treeX - 1, treeX - 1, treeX + 1, treeX + 1 };
+                            int[] crownZList = { treeZ - 1, treeZ + 1, treeZ + 1, treeZ - 1 };
+                            
+                            for (int i = 0; i < 4; i++)
+                            {
+                                int foliageX = foliageXList[i];
+                                int foliageZ = foliageZList[i];
+                                
+                                int foliageCut = rand.nextInt(10);
+                                
+                                switch(foliageCut) {
+                                    case 0: // cut out top
+                                        world[foliageX][terrainHeight - treeHeight + 1][foliageZ] = BLOCK_AIR;
+                                        break;
+                                    case 1: // cut out bottom
+                                        world[foliageX][terrainHeight - treeHeight + 2][foliageZ] = BLOCK_AIR;
+                                        break;
+                                    case 2: // cut out both
+                                        world[foliageX][terrainHeight - treeHeight + 1][foliageZ] = BLOCK_AIR;
+                                        world[foliageX][terrainHeight - treeHeight + 2][foliageZ] = BLOCK_AIR;
+                                        break;
+                                    default: // do nothing
+                                        break;
+                                }
+                                
+                                
+                                int crownX = crownXList[i];
+                                int crownZ = crownZList[i];
+                                
+                                int crownCut = rand.nextInt(10);
+                                
+                                switch(crownCut) {
+                                    case 0: // cut out both
+                                        world[crownX][terrainHeight - treeHeight - 1][crownZ] = BLOCK_AIR;
+                                        world[crownX][terrainHeight - treeHeight][crownZ] = BLOCK_AIR;
+                                        break;
+                                    default: // do nothing
+                                        world[crownX][terrainHeight - treeHeight - 1][crownZ] = BLOCK_AIR;
+                                        break;
+                                }
+                            }
+                        }
+                    }   
                 }
             }
             
@@ -663,6 +723,26 @@ public class Minecraft4k
         }
     }
     
+    public static void fillBox(byte blockId, int x0, int y0, int z0,
+            int x1, int y1, int z1, boolean replace)
+    {
+        for(int x = x0; x < x1; x++)
+        {
+            for(int y = y0; y < y1; y++)
+            {
+                for(int z = z0; z < z1; z++)
+                {
+                    if(!replace) {
+                        if(world[x][y][z] != BLOCK_AIR)
+                            continue;
+                    }
+                    
+                    world[x][y][z] = blockId;
+                }
+            }
+        }
+    }
+    
     volatile java.awt.Robot robot;
     private void recenterMouse(JFrame frame) {
         // create Robot
@@ -936,9 +1016,11 @@ class RenderThread implements Runnable {
                 float rayDirX = xDistSmall * cosYaw + temp * sinYaw;
                 float rayDirY = yDistSmall * cosPitch - sinPitch;
                 float rayDirZ = temp * cosYaw - xDistSmall * sinYaw;
-
-                int pixelColor = 0;
-                int fogMultiplier = 0x00;
+                
+                int pixelColor = classic ? 0 : 0x86B2FE;
+                float fogIntensity = 0.0f;
+                float lightIntensity = 1.0f;
+                
                 double furthestHit = RENDER_DIST;
                 float playerReach = 5.0F;
 
@@ -1029,6 +1111,10 @@ class RenderThread implements Runnable {
                             else
                                 textureColor = textureAtlas[texFetchX + texFetchY * TEXTURE_RES + blockHitID * (TEXTURE_RES * TEXTURE_RES) * 3];
 
+                            int direction = 1;
+                            if (delta > 0.0F)
+                                direction = -1;
+                            
                             if (rayTravelDist < playerReach && screenX == (SCR_RES_X * 2) / 4 && screenY == (SCR_RES_Y * 2) / 4) {
                                 newHoverBlockPosX = blockHitX;
                                 newHoverBlockPosY = blockHitY;
@@ -1037,10 +1123,6 @@ class RenderThread implements Runnable {
                                 placeBlockPosX = 0;
                                 placeBlockPosY = 0;
                                 placeBlockPosZ = 0;
-                                
-                                int direction = 1;
-                                if (delta > 0.0F)
-                                    direction = -1;
 
                                 switch(axis) {
                                     case AXIS_X:
@@ -1053,15 +1135,37 @@ class RenderThread implements Runnable {
                                         placeBlockPosZ = direction;
                                 }
                                 
-                                
                                 playerReach = rayTravelDist;
                             }
 
                             if ((textureColor & 0xFFFFFF) > 0) {
                                 pixelColor = textureColor;
-                                fogMultiplier = 0xFF - (int)(rayTravelDist / RENDER_DIST * 0xFF);
-                                fogMultiplier = fogMultiplier * (0xFF - (axis + 2) % 3 * 50) / 0xFF;
+                                fogIntensity = 1 - (rayTravelDist / RENDER_DIST);
+                                
+                                if(classic)
+                                    fogIntensity = fogIntensity * (0xFF - (axis + 2) % 3 * 50) / 0xFF;
+                                else
+                                    fogIntensity = 1.0f - fogIntensity;
+                                
                                 furthestHit = rayTravelDist;
+                                
+                                if(!classic)
+                                {
+                                    switch(axis)
+                                    {
+                                        case AXIS_X:
+                                            lightIntensity = direction * lightDirectionX;
+                                            break;
+                                        case AXIS_Y:
+                                            lightIntensity = direction * lightDirectionY;
+                                            break;
+                                        case AXIS_Z:
+                                            lightIntensity = direction * lightDirectionZ;
+                                            break;
+                                    }
+
+                                    lightIntensity = (1 + lightIntensity) / 4.0F + 0.5f;
+                                }
                             }
                         }
 
@@ -1072,10 +1176,11 @@ class RenderThread implements Runnable {
                         rayTravelDist += 1.0f / Math.abs(delta);
                     }
                 }
-
-                int pixelR = (pixelColor >> 16 & 0xFF) * fogMultiplier / 0xFF;
-                int pixelG = (pixelColor >> 8  & 0xFF) * fogMultiplier / 0xFF;
-                int pixelB = (pixelColor       & 0xFF) * fogMultiplier / 0xFF;
+                
+                
+                int pixelR = (int) (classic ? (pixelColor >> 16 & 0xFF) * fogIntensity : lerp(pixelColor >> 16 & 0xFF, 0xFF, fogIntensity) * lightIntensity);
+                int pixelG = (int) (classic ? (pixelColor >>  8 & 0xFF) * fogIntensity : lerp(pixelColor >>  8 & 0xFF, 0xFF, fogIntensity) * lightIntensity);
+                int pixelB = (int) (classic ? (pixelColor       & 0xFF) * fogIntensity : lerp(pixelColor       & 0xFF, 0xFF, fogIntensity) * lightIntensity);
 
                 buffer[screenIndex] = pixelR << 16 | pixelG << 8 | pixelB;
             }
@@ -1089,6 +1194,11 @@ class RenderThread implements Runnable {
                 }
             } // stuck here until render = true
         }
+    }
+    
+    static float lerp(float start, float end, float t)
+    {
+        return start + (end - start) * t;
     }
     
     volatile boolean render = true;
