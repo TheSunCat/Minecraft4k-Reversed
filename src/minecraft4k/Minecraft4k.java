@@ -22,7 +22,7 @@ import static minecraft4k.Minecraft4k.*;
 public class Minecraft4k
     extends JPanel
 {
-    static boolean classic = true;
+    static boolean classic = false;
     
     static JFrame frame;
     
@@ -406,7 +406,7 @@ public class Minecraft4k
                                     break;
                                 case BLOCK_WOOD:
                                     tint = 0x675231; // brown (bark)
-                                    if(!(y >= TEXTURE_RES && y < TEXTURE_RES * 2) && // avoid this block when we are on second row
+                                    if(!(y >= TEXTURE_RES && y < TEXTURE_RES * 2) && // second row = stripes
                                             x > 0 && x < TEXTURE_RES - 1 &&
                                             ((y > 0 && y < TEXTURE_RES - 1) || (y > TEXTURE_RES * 2 && y < TEXTURE_RES * 3 - 1))) { // wood side area
                                         tint = 0xBC9862; // light brown
@@ -415,21 +415,22 @@ public class Minecraft4k
                                         // but in short it gets the absulte distance from the tile's center in x and y direction 
                                         // finds the max of it
                                         // uses that to make the gray scale detail darker if the current pixel is part of an annual ring
-                                        // and adds some noice as a finishig touch
+                                        // and adds some noise as a finishig touch
                                         int woodCenter = TEXTURE_RES / 2 - 1;
-                                        int gsd_wood = x - woodCenter;
-                                        int gsd_tempB = (y % TEXTURE_RES) - woodCenter;
+                                        
+                                        int dx = x - woodCenter;
+                                        int dy = (y % TEXTURE_RES) - woodCenter;
 
-                                        if (gsd_wood < 0)
-                                            gsd_wood = 1 - gsd_wood;
+                                        if (dx < 0)
+                                            dx = 1 - dx;
 
-                                        if (gsd_tempB < 0)
-                                            gsd_tempB = 1 - gsd_tempB;
+                                        if (dy < 0)
+                                            dy = 1 - dy;
 
-                                        if (gsd_tempB > gsd_wood)
-                                            gsd_wood = gsd_tempB;
+                                        if (dy > dx)
+                                            dx = dy;
 
-                                        gsd_tempA = 196 - rand.nextInt(32) + gsd_wood % 3 * 32;
+                                        gsd_tempA = 196 - rand.nextInt(32) + dx % 3 * 32;
                                     } else if (rand.nextInt(2) == 0) {
                                         // make the gsd 50% brighter on random pixels of the bark
                                         // and 50% darker if x happens to be odd
@@ -474,21 +475,32 @@ public class Minecraft4k
                                 case BLOCK_WOOD:
                                     tint = 0x776644; // brown (bark)
 
-                                    float dx = Math.abs(x - 8);
-                                    float dy = Math.abs((y % 16) - 8);
-                                    int gsd_wood = (int) (Math.sqrt(dx * dx + dy * dy) * .25f + Math.max(dx, dy) * .75f);
+                                    int woodCenter = TEXTURE_RES / 2 - 1;
+                                    int dx = x - woodCenter;
+                                    int dy = (y % TEXTURE_RES) - woodCenter;
 
-                                    if(y < 16 || y > 32){
-                                      if (gsd_wood < 7) { // wood inside area
+                                    if (dx < 0)
+                                        dx = 1 - dx;
+
+                                    if (dy < 0)
+                                        dy = 1 - dy;
+
+                                    if (dy > dx)
+                                        dx = dy;
+                                    
+                                    double distFromCenter = (Math.sqrt(dx * dx + dy * dy) * .25f + Math.max(dx, dy) * .75f);
+
+                                    if(y < 16 || y > 32) { // top/bottom
+                                        if (distFromCenter < TEXTURE_RES / 2) {
                                         tint = 0xCCAA77; // light brown
 
-                                        gsd_tempA = 196 - (int)rand.nextInt(32) + gsd_wood % 3 * 32;
-                                      } else if(dx>dy){
+                                        gsd_tempA = 196 - (int)rand.nextInt(32) + dx % 3 * 32;
+                                      } else if(dx > dy) {
                                         gsd_tempA = (int)(noise(y, x * .25f) * 255 * (180 - Math.sin(x * Math.PI) * 50) / 100);
                                       } else {
                                         gsd_tempA = (int)(noise(x, y * .25f) * 255 * (180 - Math.sin(x * Math.PI) * 50) / 100);
                                       }
-                                    } else {
+                                    } else { // side texture
                                         gsd_tempA = (int)(noise(x, y * .25f) * 255 * (180 - Math.sin(x * Math.PI) * 50) / 100);
                                     }
                                     break;
@@ -510,7 +522,7 @@ public class Minecraft4k
 
                             gsd_final = gsd_tempA;
                             if (y >= 32) // bottom side of the block
-                                gsd_final /= 2; // make it darker, "sading"
+                                gsd_final /= 2; // make it darker, "shading"
                             
                             if(blockType == BLOCK_LEAVES)
                             {
