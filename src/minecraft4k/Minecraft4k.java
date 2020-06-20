@@ -4,6 +4,7 @@ import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics2D;
+import java.awt.HeadlessException;
 import java.awt.MouseInfo;
 import java.awt.Point;
 import java.awt.event.FocusEvent;
@@ -42,6 +43,7 @@ public class Minecraft4k
     static int SCR_RES_Y = (int) (60 * Math.pow(2, SCR_DETAIL));
     
     final static float RENDER_DIST = classic ? 20.0f : 80.0f;
+    final static float PLAYER_REACH = 5.0f;
     
     final static int THREADS = Runtime.getRuntime().availableProcessors();
     static ArrayList<RenderThread> threadList = new ArrayList();
@@ -446,7 +448,7 @@ public class Minecraft4k
 
                             gsd_final = gsd_tempA;
                             if (y >= TEXTURE_RES * 2) // bottom side of the block
-                                gsd_final /= 2; // has to be darker
+                                gsd_final /= 2; // make it darker, baked "shading"
 
                             if (blockType == BLOCK_LEAVES) {
                                 tint = 0x50D937; // green
@@ -521,8 +523,6 @@ public class Minecraft4k
                             }
 
                             gsd_final = gsd_tempA;
-                            if (y >= 32) // bottom side of the block
-                                gsd_final /= 2; // make it darker, "shading"
                             
                             if(blockType == BLOCK_LEAVES)
                             {
@@ -730,7 +730,7 @@ public class Minecraft4k
                     mouseDelta = new Point();
                 }
             }
-        } catch (Exception localException) {
+        } catch (HeadlessException | InterruptedException localException) {
             localException.printStackTrace();
         }
     }
@@ -1020,23 +1020,29 @@ class RenderThread implements Runnable {
                 int screenX = (screenIndex + start) % SCR_RES_X;
                 int screenY = (screenIndex + start) / SCR_RES_X;
 
-                float xDistSmall = ((screenX - (SCR_RES_X / 2)) / FOV) / (float) SCR_RES_X * 214.0f;
-                float yDistSmall = ((screenY - (SCR_RES_Y / 2)) / FOV) / (float) SCR_RES_Y * 120.0f;
-
-                float temp = cosPitch + yDistSmall * sinPitch;
-
-                float rayDirX = xDistSmall * cosYaw + temp * sinYaw;
-                float rayDirY = yDistSmall * cosPitch - sinPitch;
-                float rayDirZ = temp * cosYaw - xDistSmall * sinYaw;
+                float frustumRayX = ((screenX - (SCR_RES_X / 2)) / FOV) / (float) SCR_RES_X * 214.0f;
+                float frustumRayY = ((screenY - (SCR_RES_Y / 2)) / FOV) / (float) SCR_RES_Y * 120.0f;
                 
-                int pixelColor = classic ? 0 : 0x86B2FE;
+                // rotate frustum space to world space
+                float temp = cosPitch + frustumRayY * sinPitch;
+
+                float rayDirX = frustumRayX * cosYaw + temp * sinYaw;
+                float rayDirY = frustumRayY * cosPitch - sinPitch;
+                float rayDirZ = temp * cosYaw - frustumRayX * sinYaw;
+                
+                
+                int pixelColor = classic ? 0 : 0x86B2FE; // sky color (default)
                 float fogIntensity = 0.0f;
                 float lightIntensity = 1.0f;
                 
                 double furthestHit = RENDER_DIST;
-                float playerReach = 5.0F;
+                
+                float hoverCheckDist = PLAYER_REACH; // start at max reach
 
-                for (int axis = 0; axis < 3; axis++) {
+                for (int axis = 0; axis < 3; axis++)
+                {
+                    // align ray to block edge on this axis
+                    // and calc ray deltas
                     float delta;
                     switch(axis)
                     {
@@ -1055,33 +1061,33 @@ class RenderThread implements Runnable {
                     float rayDeltaX = rayDirX / Math.abs(delta);
                     float rayDeltaY = rayDirY / Math.abs(delta);
                     float rayDeltaZ = rayDirZ / Math.abs(delta);
-
-
-                    float floatComponent;
+                    
+                    float playerOffsetFromBlockEdge; // TODO confirm
                     switch(axis)
                     {
                         default:
                         case AXIS_X:
-                            floatComponent = playerX % 1.0f;
+                            playerOffsetFromBlockEdge = playerX % 1.0f;
                             break;
                         case AXIS_Y:
-                            floatComponent = playerY % 1.0f;
+                            playerOffsetFromBlockEdge = playerY % 1.0f;
                             break;
                         case AXIS_Z:
-                            floatComponent = playerZ % 1.0f;
+                            playerOffsetFromBlockEdge = playerZ % 1.0f;
                             break;
                     }
 
                     if (delta > 0)
-                        floatComponent = 1.0f - floatComponent;
-
-                    float rayTravelDist = floatComponent / Math.abs(delta);
-
-                    float rayX = playerX + rayDeltaX * floatComponent;
-                    float rayY = playerY + rayDeltaY * floatComponent;
-                    float rayZ = playerZ + rayDeltaZ * floatComponent;
-
-                    if (delta < 0.0F) {
+                        playerOffsetFromBlockEdge = 1.0f - playerOffsetFromBlockEdge;
+                    
+                    float rayTravelDist = playerOffsetFromBlockEdge / Math.abs(delta);
+                    
+                    float rayX = playerX + rayDeltaX * playerOffsetFromBlockEdge;
+                    float rayY = playerY + rayDeltaY * playerOffsetFromBlockEdge;
+                    float rayZ = playerZ + rayDeltaZ * playerOffsetFromBlockEdge;
+                    
+                    if (delta < 0.0F)
+                    {
                         if (axis == AXIS_X)
                             rayX--;
 
@@ -1091,25 +1097,30 @@ class RenderThread implements Runnable {
                         if (axis == AXIS_Z)
                             rayZ--;
                     }
-
-                    while (rayTravelDist < furthestHit) {
+                    
+                    // do the raycast
+                    while (rayTravelDist < furthestHit)
+                    {
                         int blockHitX = (int) rayX - WORLD_SIZE;
                         int blockHitY = (int) rayY - WORLD_HEIGHT;
                         int blockHitZ = (int) rayZ - WORLD_SIZE;
 
+                        // if ray exits the world
                         if (blockHitX < 0 || blockHitY < -2 || blockHitZ < 0 || blockHitX >= WORLD_SIZE || blockHitY >= WORLD_HEIGHT || blockHitZ >= WORLD_SIZE)
                             break;
-                        
+
                         int blockHitID = blockHitY < 0 ? BLOCK_AIR : world[blockHitX][blockHitY][blockHitZ];
 
-                        if (blockHitID != BLOCK_AIR) {
+                        if (blockHitID != BLOCK_AIR)
+                        {
                             int texFetchX = (int)((rayX + rayZ) * TEXTURE_RES) % TEXTURE_RES;
                             int texFetchY = ((int)(rayY * TEXTURE_RES) % TEXTURE_RES) + TEXTURE_RES;
 
-                            if (axis == AXIS_Y) {
+                            if (axis == AXIS_Y)
+                            {
                                 texFetchX = (int)(rayX * TEXTURE_RES) % TEXTURE_RES;
                                 texFetchY = (int)(rayZ * TEXTURE_RES) % TEXTURE_RES;
-
+                                
                                 // "lighting"
                                 if (rayDeltaY < 0.0F) // looking at the underside of a block
                                     texFetchY += TEXTURE_RES * 2;
@@ -1126,12 +1137,12 @@ class RenderThread implements Runnable {
                             int direction = 1;
                             if (delta > 0.0F)
                                 direction = -1;
-                            
-                            if (rayTravelDist < playerReach && screenX == (SCR_RES_X * 2) / 4 && screenY == (SCR_RES_Y * 2) / 4) {
+
+                            if (rayTravelDist < hoverCheckDist && screenX == (SCR_RES_X * 2) / 4 && screenY == (SCR_RES_Y * 2) / 4) {
                                 newHoverBlockPosX = blockHitX;
                                 newHoverBlockPosY = blockHitY;
                                 newHoverBlockPosZ = blockHitZ;
-                                
+
                                 placeBlockPosX = 0;
                                 placeBlockPosY = 0;
                                 placeBlockPosZ = 0;
@@ -1146,21 +1157,21 @@ class RenderThread implements Runnable {
                                     case AXIS_Z:
                                         placeBlockPosZ = direction;
                                 }
-                                
-                                playerReach = rayTravelDist;
+
+                                hoverCheckDist = rayTravelDist;
                             }
 
                             if ((textureColor & 0xFFFFFF) > 0) {
                                 pixelColor = textureColor;
                                 fogIntensity = 1 - (rayTravelDist / RENDER_DIST);
-                                
+
                                 if(classic)
                                     fogIntensity = fogIntensity * (0xFF - (axis + 2) % 3 * 50) / 0xFF;
                                 else
                                     fogIntensity = 1.0f - fogIntensity;
-                                
+
                                 furthestHit = rayTravelDist;
-                                
+
                                 if(!classic)
                                 {
                                     switch(axis)
@@ -1180,7 +1191,7 @@ class RenderThread implements Runnable {
                                 }
                             }
                         }
-
+                        
                         rayX += rayDeltaX;
                         rayY += rayDeltaY;
                         rayZ += rayDeltaZ;
