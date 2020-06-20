@@ -73,6 +73,10 @@ public class Minecraft4k
     static BufferedImage crosshair;
     final static int CROSS_SIZE = 32;
     
+    final static Vec3 FOG_COLOR = new Vec3(1);
+    final static Vec3 SUN_LIGHT_COLOR = new Vec3(1, 0.8f, 0.5f);
+    final static Vec3 AMBIENT_LIGHT_COLOR = new Vec3(0, 0, 0.5f);
+    
     static long deltaTime = 0;
     static Font font = Font.getFont("Arial");
     static java.awt.Cursor hiddenCursor;
@@ -228,9 +232,7 @@ public class Minecraft4k
     volatile static int newHoverBlockPosY = -1;
     volatile static int newHoverBlockPosZ = -1;
     
-    static float lightDirectionX =  0.866025404f;
-    static float lightDirectionY = -0.866025404f;
-    static float lightDirectionZ =  0.866025404f;
+    static Vec3 lightDirection = new Vec3(0.866025404f, -0.866025404f, 0.866025404f);
 
     static float cameraYaw = 0.0f;
     static float cameraPitch = 0.0f;
@@ -581,9 +583,9 @@ public class Minecraft4k
                 sinPitch = (float)Math.sin(cameraPitch);
                 cosPitch = (float)Math.cos(cameraPitch);
                 
-                lightDirectionX = 0;
-                lightDirectionY = (float) Math.sin(time / 1000.0d);
-                lightDirectionZ = (float) Math.cos(time / 1000.0d);
+                lightDirection.x = 0;
+                lightDirection.y = (float) Math.sin(time / 10000.0d);
+                lightDirection.z = (float) Math.cos(time / 10000.0d);
                 
                 while (System.currentTimeMillis() - startTime > 10L) {
                     // adjust camera
@@ -617,9 +619,9 @@ public class Minecraft4k
                         
                         for (int colliderIndex = 0; colliderIndex < 12; colliderIndex++) {
                             // magic
-                            int colliderBlockX = (int)(newPlayerX + (colliderIndex >> 0 & 1) * 0.6F - 0.3F) - WORLD_SIZE;
+                            int colliderBlockX = (int)(newPlayerX +  (colliderIndex       & 1) * 0.6F - 0.3F ) - WORLD_SIZE;
                             int colliderBlockY = (int)(newPlayerY + ((colliderIndex >> 2) - 1) * 0.8F + 0.65F) - WORLD_HEIGHT;
-                            int colliderBlockZ = (int)(newPlayerZ + (colliderIndex >> 1 & 1) * 0.6F - 0.3F) - WORLD_SIZE;
+                            int colliderBlockZ = (int)(newPlayerZ +  (colliderIndex >> 1  & 1) * 0.6F - 0.3F ) - WORLD_SIZE;
                             
                             if(colliderBlockY < 0)
                                 continue;
@@ -668,7 +670,7 @@ public class Minecraft4k
                 }
                 
                 for (int colliderIndex = 0; colliderIndex < 12; colliderIndex++) {
-                    int magicX = (int)(playerX + ( colliderIndex >> 0  & 1) * 0.6F - 0.3F ) - WORLD_SIZE;
+                    int magicX = (int)(playerX + ( colliderIndex       & 1) * 0.6F - 0.3F ) - WORLD_SIZE;
                     int magicY = (int)(playerY + ((colliderIndex >> 2) - 1) * 0.8F + 0.65F) - WORLD_HEIGHT;
                     int magicZ = (int)(playerZ + ( colliderIndex >> 1  & 1) * 0.6F - 0.3F ) - WORLD_SIZE;
                     
@@ -1030,12 +1032,10 @@ class RenderThread implements Runnable {
                 // rotate frustum space to world space
                 float temp = cosPitch + frustumRayY * sinPitch;
 
-                float rayDirX = frustumRayX * cosYaw + temp * sinYaw;
-                float rayDirY = frustumRayY * cosPitch - sinPitch;
-                float rayDirZ = temp * cosYaw - frustumRayX * sinYaw;
+                Vec3 rayDir = new Vec3(frustumRayX * cosYaw + temp * sinYaw, frustumRayY * cosPitch - sinPitch, temp * cosYaw - frustumRayX * sinYaw);
                 
                 
-                int pixelColor = classic ? 0 : 0x86B2FE; // sky color (default)
+                Vec3 pixelColor = classic ? new Vec3() : Vec3.fromRGB(0x86, 0xB2, 0xFE); // sky color (default)
                 float fogIntensity = 0.0f;
                 float lightIntensity = 1.0f;
                 
@@ -1065,19 +1065,19 @@ class RenderThread implements Runnable {
                         {
                             default:
                             case AXIS_X:
-                                delta = rayDirX;
+                                delta = rayDir.x;
                                 break;
                             case AXIS_Y:
-                                delta = rayDirY;
+                                delta = rayDir.y;
                                 break;
                             case AXIS_Z:
-                                delta = rayDirZ;
+                                delta = rayDir.z;
                                 break;
                         }
 
-                        float rayDeltaX = rayDirX / Math.abs(delta);
-                        float rayDeltaY = rayDirY / Math.abs(delta);
-                        float rayDeltaZ = rayDirZ / Math.abs(delta);
+                        float rayDeltaX = rayDir.x / Math.abs(delta);
+                        float rayDeltaY = rayDir.y / Math.abs(delta);
+                        float rayDeltaZ = rayDir.z / Math.abs(delta);
 
                         float playerOffsetFromBlockEdge; // TODO confirm
                         switch(axis)
@@ -1114,13 +1114,6 @@ class RenderThread implements Runnable {
                             if (axis == AXIS_Z)
                                 rayZ--;
                         }
-
-//                        if(pass == 1)
-//                        {
-//                            rayX += rayDeltaX;
-//                            rayY += rayDeltaY;
-//                            rayZ += rayDeltaZ;
-//                        }
                         
                         // do the raycast
                         while (rayTravelDist < furthestHit)
@@ -1149,14 +1142,14 @@ class RenderThread implements Runnable {
                                         texFetchY += TEXTURE_RES * 2;
                                 }
 
-                                int textureColor;
+                                Vec3 textureColor;
                                 if(pass == 0 &&
                                         (blockHitX == hoveredBlockPosX && blockHitY == hoveredBlockPosY && blockHitZ == hoveredBlockPosZ &&
                                         (  (texFetchX == 0               || texFetchY % TEXTURE_RES == 0)
                                         || (texFetchX == TEXTURE_RES - 1 || texFetchY % TEXTURE_RES == TEXTURE_RES - 1))))
-                                    textureColor = 0xFFFFFF; // add white outline to hovered block
+                                    textureColor = new Vec3(1, 1, 1); // add white outline to hovered block
                                 else
-                                    textureColor = textureAtlas[texFetchX + texFetchY * TEXTURE_RES + blockHitID * (TEXTURE_RES * TEXTURE_RES) * 3];
+                                    textureColor = Vec3.fromRGB(textureAtlas[texFetchX + texFetchY * TEXTURE_RES + blockHitID * (TEXTURE_RES * TEXTURE_RES) * 3]);
 
                                 int direction = 1;
                                 if (delta > 0.0F)
@@ -1188,7 +1181,7 @@ class RenderThread implements Runnable {
                                     hoverCheckDist = rayTravelDist;
                                 }
 
-                                if ((textureColor & 0xFFFFFF) > 0) {
+                                if (!textureColor.isZero()) {
                                     if(pass == 0) // not shadows
                                     {
                                         pixelColor = textureColor;
@@ -1216,17 +1209,17 @@ class RenderThread implements Runnable {
                                         switch(axis)
                                         {
                                             case AXIS_X:
-                                                lightIntensity = direction * lightDirectionX;
+                                                lightIntensity = direction * lightDirection.x;
                                                 break;
                                             case AXIS_Y:
-                                                lightIntensity = direction * lightDirectionY;
+                                                lightIntensity = direction * lightDirection.y;
                                                 break;
                                             case AXIS_Z:
-                                                lightIntensity = direction * lightDirectionZ;
+                                                lightIntensity = direction * lightDirection.z;
                                                 break;
                                         }
 
-                                        lightIntensity = (1 + lightIntensity) / 4.0F + 0.5f;
+                                        lightIntensity = (1 + lightIntensity) / 2.0F;
                                     }
                                 }
                             }
@@ -1239,7 +1232,7 @@ class RenderThread implements Runnable {
                         }
                     }
                     
-                    if(lightIntensity <= 0.75f)
+                    if(lightIntensity <= 0.5f)
                         break;
                     
                     // prepare for shadows pass
@@ -1247,19 +1240,28 @@ class RenderThread implements Runnable {
                     rayOriginY = closestHitY;
                     rayOriginZ = closestHitZ;
                     
-                    rayDirX = lightDirectionX;
-                    rayDirY = lightDirectionY;
-                    rayDirZ = lightDirectionZ;
+                    rayDir.x = lightDirection.x;
+                    rayDir.y = lightDirection.y;
+                    rayDir.z = lightDirection.z;
                     
                     furthestHit = RENDER_DIST;
                 }
                 
+                Vec3.mult(pixelColor, 0xFF, pixelColor);
                 
-                int pixelR = (int) (classic ? (pixelColor >> 16 & 0xFF) * fogIntensity : lerp(pixelColor >> 16 & 0xFF, 0xFF, fogIntensity) * lightIntensity);
-                int pixelG = (int) (classic ? (pixelColor >>  8 & 0xFF) * fogIntensity : lerp(pixelColor >>  8 & 0xFF, 0xFF, fogIntensity) * lightIntensity);
-                int pixelB = (int) (classic ? (pixelColor       & 0xFF) * fogIntensity : lerp(pixelColor       & 0xFF, 0xFF, fogIntensity) * lightIntensity);
+                if(classic)
+                    Vec3.mult(pixelColor, fogIntensity, pixelColor);
+                else
+                {
+                    Vec3.lerp(pixelColor, FOG_COLOR, fogIntensity, pixelColor);
+                    
+                    Vec3 lightColor = new Vec3();
+                    Vec3.lerp(AMBIENT_LIGHT_COLOR, SUN_LIGHT_COLOR, lightIntensity, lightColor);
+                    
+                    Vec3.mult(pixelColor, lightColor, pixelColor);
+                }
 
-                buffer[screenIndex] = pixelR << 16 | pixelG << 8 | pixelB;
+                buffer[screenIndex] = ((int) pixelColor.x) << 16 | ((int) pixelColor.y) << 8 | (int) pixelColor.z;
             }
 
             render = false;
@@ -1273,10 +1275,97 @@ class RenderThread implements Runnable {
         }
     }
     
-    static float lerp(float start, float end, float t)
+    public static float lerp(float start, float end, float t)
     {
         return start + (end - start) * t;
     }
     
     volatile boolean render = true;
+}
+
+class Vec3
+{
+    float x, y, z;
+    
+    Vec3(float _x, float _y, float _z)
+    {
+        x = _x;
+        y = _y;
+        z = _z;
+    }
+    
+    Vec3(float val)
+    {
+        x = val;
+        y = val;
+        z = val;
+    }
+    
+    Vec3()
+    {
+        this(0.0f, 0.0f, 0.0f);
+    }
+    
+    boolean isZero()
+    {
+        return x == 0 && y == 0 && z == 0;
+    }
+    
+    static void add(Vec3 a, Vec3 b, Vec3 out)
+    {
+        out.x = a.x + b.x;
+        out.y = a.y + b.y;
+        out.z = a.z + b.z;
+    }
+    
+    static void sub(Vec3 a, Vec3 b, Vec3 out)
+    {
+        out.x = a.x - b.x;
+        out.y = a.y - b.y;
+        out.z = a.z - b.z;
+    }
+    
+    static float dot(Vec3 a, Vec3 b)
+    {
+        return a.x * b.x + a.y * b.y + a.z * b.z;
+    }
+    
+    static void mult(Vec3 a, Vec3 b, Vec3 out)
+    {
+        out.x = a.x * b.x;
+        out.y = a.y * b.y;
+        out.z = a.z * b.z;
+    }
+    
+    static void mult(Vec3 a, float b, Vec3 out)
+    {
+        out.x = a.x * b;
+        out.y = a.y * b;
+        out.z = a.z * b;
+    }
+    
+    static void lerp(Vec3 start, Vec3 end, float t, Vec3 out)
+    {
+        out.x = start.x + (end.x - start.x) * t;
+        out.y = start.y + (end.y - start.y) * t;
+        out.z = start.z + (end.z - start.z) * t;
+    }
+    
+    static Vec3 fromRGB(int r, int g, int b)
+    {
+        return new Vec3(r / 255f, g / 255f, b / 255f);
+    }
+    
+    static Vec3 fromRGB(int rgb)
+    {
+        return  fromRGB(rgb >> 16 & 0xFF,
+                        rgb >> 8 & 0xFF,
+                        rgb & 0xFF);
+    }
+    
+    @Override
+    public String toString()
+    {
+        return x + ", " + y + ", " + z;
+    }
 }
