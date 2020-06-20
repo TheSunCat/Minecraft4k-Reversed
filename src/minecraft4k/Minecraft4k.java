@@ -56,10 +56,6 @@ public class Minecraft4k
     final static int WORLD_SIZE = 64;
     final static int WORLD_HEIGHT = 64;
     
-    static float lightDirectionX = 0.866025404f;
-    static float lightDirectionY = -0.866025404f;
-    static float lightDirectionZ = 0.866025404f;
-    
     final static int AXIS_X = 0;
     final static int AXIS_Y = 1;
     final static int AXIS_Z = 2;
@@ -231,6 +227,10 @@ public class Minecraft4k
     volatile static int newHoverBlockPosX = -1;
     volatile static int newHoverBlockPosY = -1;
     volatile static int newHoverBlockPosZ = -1;
+    
+    static float lightDirectionX =  0.866025404f;
+    static float lightDirectionY = -0.866025404f;
+    static float lightDirectionZ =  0.866025404f;
 
     static float cameraYaw = 0.0f;
     static float cameraPitch = 0.0f;
@@ -580,6 +580,10 @@ public class Minecraft4k
                 cosYaw = (float)Math.cos(cameraYaw);
                 sinPitch = (float)Math.sin(cameraPitch);
                 cosPitch = (float)Math.cos(cameraPitch);
+                
+                lightDirectionX = 0;
+                lightDirectionY = (float) Math.sin(time / 1000.0d);
+                lightDirectionZ = (float) Math.cos(time / 1000.0d);
                 
                 while (System.currentTimeMillis() - startTime > 10L) {
                     // adjust camera
@@ -1039,165 +1043,215 @@ class RenderThread implements Runnable {
                 
                 float hoverCheckDist = PLAYER_REACH; // start at max reach
 
-                for (int axis = 0; axis < 3; axis++)
+                float closestHitX = -1;
+                float closestHitY = -1;
+                float closestHitZ = -1;
+                
+                
+                float rayOriginX = playerX;
+                float rayOriginY = playerY;
+                float rayOriginZ = playerZ;
+                
+                for(int pass = 0; pass < 2; pass++)
                 {
-                    // align ray to block edge on this axis
-                    // and calc ray deltas
-                    float delta;
-                    switch(axis)
+                    
+                    AXIS:
+                    for (int axis = 0; axis < 3; axis++)
                     {
-                        default:
-                        case AXIS_X:
-                            delta = rayDirX;
-                            break;
-                        case AXIS_Y:
-                            delta = rayDirY;
-                            break;
-                        case AXIS_Z:
-                            delta = rayDirZ;
-                            break;
-                    }
-
-                    float rayDeltaX = rayDirX / Math.abs(delta);
-                    float rayDeltaY = rayDirY / Math.abs(delta);
-                    float rayDeltaZ = rayDirZ / Math.abs(delta);
-                    
-                    float playerOffsetFromBlockEdge; // TODO confirm
-                    switch(axis)
-                    {
-                        default:
-                        case AXIS_X:
-                            playerOffsetFromBlockEdge = playerX % 1.0f;
-                            break;
-                        case AXIS_Y:
-                            playerOffsetFromBlockEdge = playerY % 1.0f;
-                            break;
-                        case AXIS_Z:
-                            playerOffsetFromBlockEdge = playerZ % 1.0f;
-                            break;
-                    }
-
-                    if (delta > 0)
-                        playerOffsetFromBlockEdge = 1.0f - playerOffsetFromBlockEdge;
-                    
-                    float rayTravelDist = playerOffsetFromBlockEdge / Math.abs(delta);
-                    
-                    float rayX = playerX + rayDeltaX * playerOffsetFromBlockEdge;
-                    float rayY = playerY + rayDeltaY * playerOffsetFromBlockEdge;
-                    float rayZ = playerZ + rayDeltaZ * playerOffsetFromBlockEdge;
-                    
-                    if (delta < 0.0F)
-                    {
-                        if (axis == AXIS_X)
-                            rayX--;
-
-                        if (axis == AXIS_Y)
-                            rayY--;
-
-                        if (axis == AXIS_Z)
-                            rayZ--;
-                    }
-                    
-                    // do the raycast
-                    while (rayTravelDist < furthestHit)
-                    {
-                        int blockHitX = (int) rayX - WORLD_SIZE;
-                        int blockHitY = (int) rayY - WORLD_HEIGHT;
-                        int blockHitZ = (int) rayZ - WORLD_SIZE;
-
-                        // if ray exits the world
-                        if (blockHitX < 0 || blockHitY < -2 || blockHitZ < 0 || blockHitX >= WORLD_SIZE || blockHitY >= WORLD_HEIGHT || blockHitZ >= WORLD_SIZE)
-                            break;
-
-                        int blockHitID = blockHitY < 0 ? BLOCK_AIR : world[blockHitX][blockHitY][blockHitZ];
-
-                        if (blockHitID != BLOCK_AIR)
+                        // align ray to block edge on this axis
+                        // and calc ray deltas
+                        float delta;
+                        switch(axis)
                         {
-                            int texFetchX = (int)((rayX + rayZ) * TEXTURE_RES) % TEXTURE_RES;
-                            int texFetchY = ((int)(rayY * TEXTURE_RES) % TEXTURE_RES) + TEXTURE_RES;
+                            default:
+                            case AXIS_X:
+                                delta = rayDirX;
+                                break;
+                            case AXIS_Y:
+                                delta = rayDirY;
+                                break;
+                            case AXIS_Z:
+                                delta = rayDirZ;
+                                break;
+                        }
+
+                        float rayDeltaX = rayDirX / Math.abs(delta);
+                        float rayDeltaY = rayDirY / Math.abs(delta);
+                        float rayDeltaZ = rayDirZ / Math.abs(delta);
+
+                        float playerOffsetFromBlockEdge; // TODO confirm
+                        switch(axis)
+                        {
+                            default:
+                            case AXIS_X:
+                                playerOffsetFromBlockEdge = rayOriginX % 1.0f;
+                                break;
+                            case AXIS_Y:
+                                playerOffsetFromBlockEdge = rayOriginY % 1.0f;
+                                break;
+                            case AXIS_Z:
+                                playerOffsetFromBlockEdge = rayOriginZ % 1.0f;
+                                break;
+                        }
+
+                        if (delta > 0)
+                            playerOffsetFromBlockEdge = 1.0f - playerOffsetFromBlockEdge;
+
+                        float rayTravelDist = playerOffsetFromBlockEdge / Math.abs(delta);
+
+                        float rayX = rayOriginX + rayDeltaX * playerOffsetFromBlockEdge;
+                        float rayY = rayOriginY + rayDeltaY * playerOffsetFromBlockEdge;
+                        float rayZ = rayOriginZ + rayDeltaZ * playerOffsetFromBlockEdge;
+
+                        if (delta < 0.0F)
+                        {
+                            if (axis == AXIS_X)
+                                rayX--;
 
                             if (axis == AXIS_Y)
+                                rayY--;
+
+                            if (axis == AXIS_Z)
+                                rayZ--;
+                        }
+
+//                        if(pass == 1)
+//                        {
+//                            rayX += rayDeltaX;
+//                            rayY += rayDeltaY;
+//                            rayZ += rayDeltaZ;
+//                        }
+                        
+                        // do the raycast
+                        while (rayTravelDist < furthestHit)
+                        {
+                            int blockHitX = (int) rayX - WORLD_SIZE;
+                            int blockHitY = (int) rayY - WORLD_HEIGHT;
+                            int blockHitZ = (int) rayZ - WORLD_SIZE;
+
+                            // if ray exits the world
+                            if (blockHitX < 0 || blockHitY < -2 || blockHitZ < 0 || blockHitX >= WORLD_SIZE || blockHitY >= WORLD_HEIGHT || blockHitZ >= WORLD_SIZE)
+                                break;
+
+                            int blockHitID = blockHitY < 0 ? BLOCK_AIR : world[blockHitX][blockHitY][blockHitZ];
+
+                            if (blockHitID != BLOCK_AIR)
                             {
-                                texFetchX = (int)(rayX * TEXTURE_RES) % TEXTURE_RES;
-                                texFetchY = (int)(rayZ * TEXTURE_RES) % TEXTURE_RES;
-                                
-                                // "lighting"
-                                if (rayDeltaY < 0.0F) // looking at the underside of a block
-                                    texFetchY += TEXTURE_RES * 2;
-                            }
+                                int texFetchX = (int)((rayX + rayZ) * TEXTURE_RES) % TEXTURE_RES;
+                                int texFetchY = ((int)(rayY * TEXTURE_RES) % TEXTURE_RES) + TEXTURE_RES;
 
-                            int textureColor;
-                            if(blockHitX == hoveredBlockPosX && blockHitY == hoveredBlockPosY && blockHitZ == hoveredBlockPosZ &&
-                                    (  (texFetchX == 0               || texFetchY % TEXTURE_RES == 0)
-                                    || (texFetchX == TEXTURE_RES - 1 || texFetchY % TEXTURE_RES == TEXTURE_RES - 1)))
-                                textureColor = 0xFFFFFF; // add white outline to hovered block
-                            else
-                                textureColor = textureAtlas[texFetchX + texFetchY * TEXTURE_RES + blockHitID * (TEXTURE_RES * TEXTURE_RES) * 3];
+                                if (axis == AXIS_Y)
+                                {
+                                    texFetchX = (int)(rayX * TEXTURE_RES) % TEXTURE_RES;
+                                    texFetchY = (int)(rayZ * TEXTURE_RES) % TEXTURE_RES;
 
-                            int direction = 1;
-                            if (delta > 0.0F)
-                                direction = -1;
-
-                            if (rayTravelDist < hoverCheckDist && screenX == (SCR_RES_X * 2) / 4 && screenY == (SCR_RES_Y * 2) / 4) {
-                                newHoverBlockPosX = blockHitX;
-                                newHoverBlockPosY = blockHitY;
-                                newHoverBlockPosZ = blockHitZ;
-
-                                placeBlockPosX = 0;
-                                placeBlockPosY = 0;
-                                placeBlockPosZ = 0;
-
-                                switch(axis) {
-                                    case AXIS_X:
-                                        placeBlockPosX = direction;
-                                        break;
-                                    case AXIS_Y:
-                                        placeBlockPosY = direction;
-                                        break;
-                                    case AXIS_Z:
-                                        placeBlockPosZ = direction;
+                                    if (rayDeltaY < 0.0F) // looking at the underside of a block
+                                        texFetchY += TEXTURE_RES * 2;
                                 }
 
-                                hoverCheckDist = rayTravelDist;
-                            }
-
-                            if ((textureColor & 0xFFFFFF) > 0) {
-                                pixelColor = textureColor;
-                                fogIntensity = 1 - (rayTravelDist / RENDER_DIST);
-
-                                if(classic)
-                                    fogIntensity = fogIntensity * (0xFF - (axis + 2) % 3 * 50) / 0xFF;
+                                int textureColor;
+                                if(pass == 0 &&
+                                        (blockHitX == hoveredBlockPosX && blockHitY == hoveredBlockPosY && blockHitZ == hoveredBlockPosZ &&
+                                        (  (texFetchX == 0               || texFetchY % TEXTURE_RES == 0)
+                                        || (texFetchX == TEXTURE_RES - 1 || texFetchY % TEXTURE_RES == TEXTURE_RES - 1))))
+                                    textureColor = 0xFFFFFF; // add white outline to hovered block
                                 else
-                                    fogIntensity = 1.0f - fogIntensity;
+                                    textureColor = textureAtlas[texFetchX + texFetchY * TEXTURE_RES + blockHitID * (TEXTURE_RES * TEXTURE_RES) * 3];
 
-                                furthestHit = rayTravelDist;
-
-                                if(!classic)
-                                {
-                                    switch(axis)
+                                int direction = 1;
+                                if (delta > 0.0F)
+                                    direction = -1;
+                                
+                                if (rayTravelDist < hoverCheckDist && screenX == (SCR_RES_X * 2) / 4 && screenY == (SCR_RES_Y * 2) / 4) {
+                                    if(pass == 0)
                                     {
-                                        case AXIS_X:
-                                            lightIntensity = direction * lightDirectionX;
-                                            break;
-                                        case AXIS_Y:
-                                            lightIntensity = direction * lightDirectionY;
-                                            break;
-                                        case AXIS_Z:
-                                            lightIntensity = direction * lightDirectionZ;
-                                            break;
+                                        newHoverBlockPosX = blockHitX;
+                                        newHoverBlockPosY = blockHitY;
+                                        newHoverBlockPosZ = blockHitZ;
+
+                                        placeBlockPosX = 0;
+                                        placeBlockPosY = 0;
+                                        placeBlockPosZ = 0;
+
+                                        switch(axis) {
+                                            case AXIS_X:
+                                                placeBlockPosX = direction;
+                                                break;
+                                            case AXIS_Y:
+                                                placeBlockPosY = direction;
+                                                break;
+                                            case AXIS_Z:
+                                                placeBlockPosZ = direction;
+                                        }
                                     }
 
-                                    lightIntensity = (1 + lightIntensity) / 4.0F + 0.5f;
+                                    hoverCheckDist = rayTravelDist;
+                                }
+
+                                if ((textureColor & 0xFFFFFF) > 0) {
+                                    if(pass == 0) // not shadows
+                                    {
+                                        pixelColor = textureColor;
+                                        fogIntensity = 1 - (rayTravelDist / RENDER_DIST);
+
+                                        if(classic)
+                                            fogIntensity = fogIntensity * (0xFF - (axis + 2) % 3 * 50) / 0xFF;
+                                        else
+                                            fogIntensity = 1.0f - fogIntensity;
+                                    }
+                                    else if(!classic) { // shadows
+                                        lightIntensity = 0.25f;
+                                        
+                                        break AXIS;
+                                    }
+                                    
+                                    furthestHit = rayTravelDist;
+
+                                    if(!classic)
+                                    {
+                                        closestHitX = rayX;
+                                        closestHitY = rayY;
+                                        closestHitZ = rayZ;
+                                        
+                                        switch(axis)
+                                        {
+                                            case AXIS_X:
+                                                lightIntensity = direction * lightDirectionX;
+                                                break;
+                                            case AXIS_Y:
+                                                lightIntensity = direction * lightDirectionY;
+                                                break;
+                                            case AXIS_Z:
+                                                lightIntensity = direction * lightDirectionZ;
+                                                break;
+                                        }
+
+                                        lightIntensity = (1 + lightIntensity) / 4.0F + 0.5f;
+                                    }
                                 }
                             }
-                        }
-                        
-                        rayX += rayDeltaX;
-                        rayY += rayDeltaY;
-                        rayZ += rayDeltaZ;
 
-                        rayTravelDist += 1.0f / Math.abs(delta);
+                            rayX += rayDeltaX;
+                            rayY += rayDeltaY;
+                            rayZ += rayDeltaZ;
+
+                            rayTravelDist += 1.0f / Math.abs(delta);
+                        }
                     }
+                    
+                    if(lightIntensity <= 0.75f)
+                        break;
+                    
+                    // prepare for shadows pass
+                    rayOriginX = closestHitX;
+                    rayOriginY = closestHitY;
+                    rayOriginZ = closestHitZ;
+                    
+                    rayDirX = lightDirectionX;
+                    rayDirY = lightDirectionY;
+                    rayDirZ = lightDirectionZ;
+                    
+                    furthestHit = RENDER_DIST;
                 }
                 
                 
