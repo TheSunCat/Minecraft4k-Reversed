@@ -14,6 +14,7 @@ import java.awt.event.MouseWheelEvent;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Random;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
@@ -27,7 +28,7 @@ public class Minecraft4k
     
     static JFrame frame;
     
-    static boolean[] input = new boolean[32767];
+    static HashSet<Integer> input = new HashSet();
     
     static Point mouseDelta = new Point();
     volatile static long lastMouseMove = System.currentTimeMillis();
@@ -73,16 +74,22 @@ public class Minecraft4k
     static BufferedImage crosshair;
     final static int CROSS_SIZE = 32;
     
+    // COLORS
     final static Vec3 FOG_COLOR = new Vec3(1);
     
-    final static Vec3 SC_DAY = new Vec3(1);//1, 0.8f, 0.5f);
+    // S = Sun, A = Amb, Y = skY
+    final static Vec3 SC_DAY = new Vec3(1);
     final static Vec3 AC_DAY = new Vec3(0.5f, 0.5f, 0.5f);
+    final static Vec3 YC_DAY = Vec3.fromRGB(0x51BAF7);
     
     final static Vec3 SC_TWILIGHT = new Vec3(1, 0.5f, 0.01f);
     final static Vec3 AC_TWILIGHT = new Vec3(0.6f, 0.5f, 0.5f);
+    final static Vec3 YC_TWILIGHT = Vec3.fromRGB(0x463C53);
     
     final static Vec3 SC_NIGHT = new Vec3(0.3f, 0.3f, 0.5f);
     final static Vec3 AC_NIGHT = new Vec3(0.3f, 0.3f, 0.5f);
+    final static Vec3 YC_NIGHT = new Vec3(0.004f, 0.004f, 0.008f);
+    
     
     static long deltaTime = 0;
     static Font font = Font.getFont("Arial");
@@ -248,8 +255,9 @@ public class Minecraft4k
     static float sinYaw, sinPitch;
     static float cosYaw, cosPitch;
     
-    static Vec3 sunColor = new Vec3(SC_DAY);
-    static Vec3 ambColor = new Vec3(AC_DAY);
+    static Vec3 sunColor = new Vec3();
+    static Vec3 ambColor = new Vec3();
+    static Vec3 skyColor = new Vec3();
     
     static int[] screenBuffer = ((DataBufferInt) SCREEN.getRaster().getDataBuffer()).getData();
     static byte[][][] world = new byte[WORLD_SIZE][WORLD_HEIGHT][WORLD_SIZE];
@@ -581,7 +589,7 @@ public class Minecraft4k
                     updateScreenResolution();
                 }
                 
-                if(input[KeyEvent.VK_Q] == true)
+                if(input.contains(KeyEvent.VK_Q))
                 {
                     System.out.println("DEBUG::BREAK");
                 }
@@ -600,9 +608,11 @@ public class Minecraft4k
                 {
                     Vec3.lerp(SC_TWILIGHT, SC_DAY, -lightDirection.y, sunColor);
                     Vec3.lerp(AC_TWILIGHT, AC_DAY, -lightDirection.y, ambColor);
+                    Vec3.lerp(YC_TWILIGHT, YC_DAY, -lightDirection.y, skyColor);
                 } else {
                     Vec3.lerp(SC_TWILIGHT, SC_NIGHT, lightDirection.y, sunColor);
                     Vec3.lerp(AC_TWILIGHT, AC_NIGHT, lightDirection.y, ambColor);
+                    Vec3.lerp(YC_TWILIGHT, YC_NIGHT, lightDirection.y, skyColor);
                 }
                 
                 while (System.currentTimeMillis() - startTime > 10L) {
@@ -618,8 +628,8 @@ public class Minecraft4k
                     
                     
                     startTime += 10L;
-                    float inputX = (integer(input[KeyEvent.VK_D]) - integer(input[KeyEvent.VK_A])) * 0.02F;
-                    float inputZ = (integer(input[KeyEvent.VK_W]) - integer(input[KeyEvent.VK_S])) * 0.02F;
+                    float inputX = (integer(input.contains(KeyEvent.VK_D)) - integer(input.contains(KeyEvent.VK_A))) * 0.02F;
+                    float inputZ = (integer(input.contains(KeyEvent.VK_W)) - integer(input.contains(KeyEvent.VK_S))) * 0.02F;
                     velocityX *= 0.5F;
                     velocityY *= 0.99F;
                     velocityZ *= 0.5F;
@@ -653,7 +663,7 @@ public class Minecraft4k
                                     continue OUTER; // movement is invalid
                                 
                                 // if we're falling, colliding, and we press space
-                                if (input[KeyEvent.VK_SPACE] == true && velocityY > 0.0F) {
+                                if (input.contains(KeyEvent.VK_SPACE) == true && velocityY > 0.0F) {
                                     velocityY = -0.1F; // jump
                                     break OUTER;
                                 }
@@ -672,17 +682,17 @@ public class Minecraft4k
                 
                 if(hoveredBlockPosX > -1) { // all axes will be -1 if nothing hovered
                     // break block
-                    if (input[MOUSE_LEFT] == true) {
+                    if (input.contains(MOUSE_LEFT) == true) {
                         world[hoveredBlockPosX][hoveredBlockPosY][hoveredBlockPosZ] = BLOCK_AIR;
-                        input[MOUSE_LEFT] = false;
+                        input.remove(MOUSE_LEFT);
                     }
                     
                     
                     if(placeBlockPosY > 0) {
                         // place block
-                        if (input[MOUSE_RIGHT] == true) {
+                        if (input.contains(MOUSE_RIGHT)) {
                             world[placeBlockPosX][placeBlockPosY][placeBlockPosZ] = hotbar[heldBlockIndex];
-                            input[MOUSE_RIGHT] = false;
+                            input.remove(MOUSE_RIGHT);
                         }
                     }
                 }
@@ -945,31 +955,31 @@ class MinecraftEventListener extends java.awt.event.KeyAdapter implements java.a
                 needsResUpdate = true;
                 break;
             default:
-                input[e.getKeyCode()] = true;
+                input.add(e.getKeyCode());
                 break;
         }
     }
 
     @Override
     public void keyReleased(KeyEvent e) {
-        input[e.getKeyCode()] = false;
+        input.remove(e.getKeyCode());
     }
 
     @Override
     public void mousePressed(MouseEvent e) {
         if (e.getButton() == MouseEvent.BUTTON1) {
-            input[MOUSE_LEFT] = true;
+            input.add(MOUSE_LEFT);
         } else if (e.getButton() == MouseEvent.BUTTON3) {
-            input[MOUSE_RIGHT] = true;
+            input.add(MOUSE_RIGHT);
         }
     }
 
     @Override
     public void mouseReleased(MouseEvent e) {
         if (e.getButton() == MouseEvent.BUTTON1) {
-            input[MOUSE_LEFT] = false;
+            input.remove(MOUSE_LEFT);
         } else if (e.getButton() == MouseEvent.BUTTON3) {
-            input[MOUSE_RIGHT] = false;
+            input.remove(MOUSE_RIGHT);
         }
     }
     
@@ -1070,9 +1080,10 @@ class RenderThread implements Runnable {
                 float rayOriginY = playerY;
                 float rayOriginZ = playerZ;
                 
-                for(int pass = 0; pass < 2; pass++)
+                boolean blockHit = false;
+                
+                for(int pass = 0; pass < (classic ? 1 : 2); pass++)
                 {
-                    
                     AXIS:
                     for (int axis = 0; axis < 3; axis++)
                     {
@@ -1239,6 +1250,8 @@ class RenderThread implements Runnable {
 
                                         lightIntensity = (1 + lightIntensity) / 2.0F;
                                     }
+                                    
+                                    blockHit = true;
                                 }
                             }
 
@@ -1250,6 +1263,10 @@ class RenderThread implements Runnable {
                         }
                     }
                     
+                    if(!blockHit) // don't do sky shadows
+                        break;
+                    
+                    // TODO why?
                     if(lightIntensity <= 0.5f)
                         break;
                     
@@ -1265,19 +1282,24 @@ class RenderThread implements Runnable {
                     furthestHit = RENDER_DIST;
                 }
                 
-                Vec3.mult(pixelColor, 0xFF, pixelColor);
-                
-                if(classic)
-                    Vec3.mult(pixelColor, fogIntensity, pixelColor);
-                else
+                if(classic || blockHit)
                 {
-                    Vec3.lerp(pixelColor, FOG_COLOR, fogIntensity, pixelColor);
-                    
-                    Vec3 lightColor = new Vec3();
-                    Vec3.lerp(ambColor, sunColor, lightIntensity, lightColor);
-                    
-                    Vec3.mult(pixelColor, lightColor, pixelColor);
+                    if(classic)
+                        Vec3.mult(pixelColor, fogIntensity, pixelColor);
+                    else
+                    {
+                        Vec3.lerp(pixelColor, FOG_COLOR, fogIntensity, pixelColor);
+
+                        Vec3 lightColor = new Vec3();
+                        Vec3.lerp(ambColor, sunColor, lightIntensity, lightColor);
+
+                        Vec3.mult(pixelColor, lightColor, pixelColor);
+                    }
+                } else {
+                    pixelColor = new Vec3(skyColor);
                 }
+                
+                Vec3.mult(pixelColor, 0xFF, pixelColor);
 
                 buffer[screenIndex] = ((int) pixelColor.x) << 16 | ((int) pixelColor.y) << 8 | (int) pixelColor.z;
             }
@@ -1289,7 +1311,7 @@ class RenderThread implements Runnable {
                 } catch (InterruptedException ex) {
                     ex.printStackTrace();
                 }
-            } // stuck here until render = true
+            } // stay here until render = true
         }
     }
     
