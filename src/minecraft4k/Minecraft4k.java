@@ -599,9 +599,10 @@ public class Minecraft4k
                 sinPitch = (float)Math.sin(cameraPitch);
                 cosPitch = (float)Math.cos(cameraPitch);
                 
-                lightDirection.x = 0;
-                lightDirection.y = (float) Math.sin(time / 1000.0d);
-                lightDirection.z = (float) Math.cos(time / 1000.0d);
+                lightDirection.y = (float) Math.sin(time / 10000.0d);
+                
+                lightDirection.x = 0; //lightDirection.y * 0.5f;
+                lightDirection.z = (float) Math.cos(time / 10000.0d);
                 
                 
                 if(lightDirection.y < 0f)
@@ -1061,7 +1062,9 @@ class RenderThread implements Runnable {
                 float temp = cosPitch + frustumRayY * sinPitch;
 
                 Vec3 rayDir = new Vec3(frustumRayX * cosYaw + temp * sinYaw, frustumRayY * cosPitch - sinPitch, temp * cosYaw - frustumRayX * sinYaw);
+                Vec3.normalize(rayDir, rayDir);
                 
+                float sunDot = Vec3.dot(rayDir, lightDirection);
                 
                 Vec3 pixelColor = classic ? new Vec3() : Vec3.fromRGB(0x86, 0xB2, 0xFE); // sky color (default)
                 float fogIntensity = 0.0f;
@@ -1296,7 +1299,10 @@ class RenderThread implements Runnable {
                         Vec3.mult(pixelColor, lightColor, pixelColor);
                     }
                 } else {
-                    pixelColor = new Vec3(skyColor);
+                    if(sunDot > 0.99f)
+                        pixelColor = new Vec3(sunColor);
+                    else
+                        pixelColor = new Vec3(skyColor);
                 }
                 
                 Vec3.mult(pixelColor, 0xFF, pixelColor);
@@ -1389,6 +1395,25 @@ class Vec3
         out.x = a.x * b;
         out.y = a.y * b;
         out.z = a.z * b;
+    }
+    
+    static void normalize(Vec3 vec, Vec3 out)
+    {
+       float length = length(vec);
+       
+       out.x = vec.x / length;
+       out.y = vec.y / length;
+       out.z = vec.z / length;
+    }
+    
+    static float length(Vec3 vec)
+    {
+        return (float) Math.sqrt(vec.x * vec.x + vec.y * vec.y + vec.z * vec.z);
+    }
+    
+    static float length2(Vec3 vec)
+    {
+        return vec.x * vec.x + vec.y * vec.y + vec.z * vec.z;
     }
     
     static void lerp(Vec3 start, Vec3 end, float t, Vec3 out)
