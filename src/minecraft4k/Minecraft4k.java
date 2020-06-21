@@ -74,8 +74,15 @@ public class Minecraft4k
     final static int CROSS_SIZE = 32;
     
     final static Vec3 FOG_COLOR = new Vec3(1);
-    final static Vec3 SUN_LIGHT_COLOR = new Vec3(1, 0.8f, 0.5f);
-    final static Vec3 AMBIENT_LIGHT_COLOR = new Vec3(0, 0, 0.5f);
+    
+    final static Vec3 SC_DAY = new Vec3(1);//1, 0.8f, 0.5f);
+    final static Vec3 AC_DAY = new Vec3(0.5f, 0.5f, 0.5f);
+    
+    final static Vec3 SC_TWILIGHT = new Vec3(1, 0.5f, 0.01f);
+    final static Vec3 AC_TWILIGHT = new Vec3(0.6f, 0.5f, 0.5f);
+    
+    final static Vec3 SC_NIGHT = new Vec3(0.3f, 0.3f, 0.5f);
+    final static Vec3 AC_NIGHT = new Vec3(0.3f, 0.3f, 0.5f);
     
     static long deltaTime = 0;
     static Font font = Font.getFont("Arial");
@@ -130,7 +137,7 @@ public class Minecraft4k
     int PERLIN_YWRAP = 1 << PERLIN_YWRAPB;
     int PERLIN_ZWRAPB = 8;
     int PERLIN_ZWRAP = 1 << PERLIN_ZWRAPB;
-    
+    static float[] perlin = null;
     
     float scaled_cosine(float i) {
         return (float) (0.5f * (1.0f - Math.cos(i * Math.PI)));
@@ -241,7 +248,8 @@ public class Minecraft4k
     static float sinYaw, sinPitch;
     static float cosYaw, cosPitch;
     
-    static float[] perlin = null;
+    static Vec3 sunColor = new Vec3(SC_DAY);
+    static Vec3 ambColor = new Vec3(AC_DAY);
     
     static int[] screenBuffer = ((DataBufferInt) SCREEN.getRaster().getDataBuffer()).getData();
     static byte[][][] world = new byte[WORLD_SIZE][WORLD_HEIGHT][WORLD_SIZE];
@@ -584,8 +592,18 @@ public class Minecraft4k
                 cosPitch = (float)Math.cos(cameraPitch);
                 
                 lightDirection.x = 0;
-                lightDirection.y = (float) Math.sin(time / 10000.0d);
-                lightDirection.z = (float) Math.cos(time / 10000.0d);
+                lightDirection.y = (float) Math.sin(time / 1000.0d);
+                lightDirection.z = (float) Math.cos(time / 1000.0d);
+                
+                
+                if(lightDirection.y < 0f)
+                {
+                    Vec3.lerp(SC_TWILIGHT, SC_DAY, -lightDirection.y, sunColor);
+                    Vec3.lerp(AC_TWILIGHT, AC_DAY, -lightDirection.y, ambColor);
+                } else {
+                    Vec3.lerp(SC_TWILIGHT, SC_NIGHT, lightDirection.y, sunColor);
+                    Vec3.lerp(AC_TWILIGHT, AC_NIGHT, lightDirection.y, ambColor);
+                }
                 
                 while (System.currentTimeMillis() - startTime > 10L) {
                     // adjust camera
@@ -1256,7 +1274,7 @@ class RenderThread implements Runnable {
                     Vec3.lerp(pixelColor, FOG_COLOR, fogIntensity, pixelColor);
                     
                     Vec3 lightColor = new Vec3();
-                    Vec3.lerp(AMBIENT_LIGHT_COLOR, SUN_LIGHT_COLOR, lightIntensity, lightColor);
+                    Vec3.lerp(ambColor, sunColor, lightIntensity, lightColor);
                     
                     Vec3.mult(pixelColor, lightColor, pixelColor);
                 }
@@ -1299,6 +1317,13 @@ class Vec3
         x = val;
         y = val;
         z = val;
+    }
+    
+    Vec3(Vec3 copy)
+    {
+        x = copy.x;
+        y = copy.y;
+        z = copy.z;
     }
     
     Vec3()
