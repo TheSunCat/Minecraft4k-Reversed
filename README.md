@@ -1,4 +1,4 @@
-# This project have moved! All new development happens here: https://github.com/RealTheSunCat/Minecraft4k-CPP
+# This project has moved! All new development happens here: https://github.com/RealTheSunCat/Minecraft4k-CPP
 
 Minecraft4k-Reversed was created by me and JuPaHe64.<br>
 <br>
